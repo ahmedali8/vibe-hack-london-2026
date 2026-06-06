@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 export type CyclePhase = 'menstrual' | 'follicular' | 'ovulatory' | 'luteal';
 
@@ -48,7 +48,7 @@ export function todayISO(): string {
 
 async function read<T>(key: string): Promise<T | null> {
   try {
-    const raw = await AsyncStorage.getItem(key);
+    const raw = await SecureStore.getItemAsync(key);
     return raw ? (JSON.parse(raw) as T) : null;
   } catch {
     return null;
@@ -56,7 +56,7 @@ async function read<T>(key: string): Promise<T | null> {
 }
 
 async function write<T>(key: string, value: T): Promise<void> {
-  await AsyncStorage.setItem(key, JSON.stringify(value));
+  await SecureStore.setItemAsync(key, JSON.stringify(value));
 }
 
 export async function getProfile(): Promise<OvaraProfile | null> {
@@ -88,7 +88,7 @@ export async function saveState(s: DailyState): Promise<void> {
 }
 
 export async function clearAll(): Promise<void> {
-  await AsyncStorage.multiRemove(Object.values(KEYS));
+  await Promise.all(Object.values(KEYS).map((k) => SecureStore.deleteItemAsync(k)));
 }
 
 export function computePhase(cycleStartDate: string, today = new Date()) {
