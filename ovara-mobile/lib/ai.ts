@@ -18,34 +18,45 @@ export async function sendChatMessage(
   messages: ChatMessage[],
   context: object | null,
 ): Promise<string> {
-  const apiKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
   if (!apiKey) {
-    return "i'm not able to respond right now — please add your ANTHROPIC_API_KEY to the .env file 🌸";
+    return "i'm not able to respond right now — please add your GEMINI_API_KEY to the .env file 🌸";
   }
 
   const contextBlock = context
     ? `\n\nHere is what you know about her right now:\n${JSON.stringify(context, null, 2)}`
     : '';
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
+  // Gemini expects messages as alternating user/model turns.
+  // We prepend the system prompt as the first user turn + a model ack.
+  const geminiContents = [
+    { role: 'user', parts: [{ text: SYSTEM_PROMPT + contextBlock }] },
+    { role: 'model', parts: [{ text: 'understood 🌸' }] },
+    ...messages.map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    })),
+  ];
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        contents: geminiContents,
+        generationConfig: { maxOutputTokens: 512, temperature: 0.7 },
+      }),
     },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
-      system: SYSTEM_PROMPT + contextBlock,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-    }),
-  });
+  );
 
   if (!res.ok) {
     return "i'm having a little trouble responding. please try again in a moment 🌸";
   }
 
   const data = await res.json();
-  return data.content?.[0]?.text ?? "i'm here, but couldn't quite form a response. try again lovely 🌸";
+  return (
+    data.candidates?.[0]?.content?.parts?.[0]?.text ??
+    "i'm here, but couldn't quite form a response. try again lovely 🌸"
+  );
 }
