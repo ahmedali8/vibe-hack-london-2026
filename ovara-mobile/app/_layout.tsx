@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
   Fraunces_400Regular,
@@ -34,14 +35,16 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.canvas }}>
-      <StatusBar style="dark" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: colors.canvas },
-          animation: 'slide_from_right',
-        }}
-      />
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: colors.canvas },
+            animation: 'slide_from_right',
+          }}
+        />
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
