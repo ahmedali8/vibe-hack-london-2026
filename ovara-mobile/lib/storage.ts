@@ -16,11 +16,17 @@ export type OvaraProfile = {
 export type Meal = { id: string; label: string; title: string; note: string; emoji: string };
 export type Workout = { title: string; duration: string; intensity: string; note: string; emoji: string };
 
+export type WorkoutTip = { emoji: string; title: string; body: string };
+
 export type DailyPlan = {
   date: string;
   meals: Meal[];
   workout: Workout;
   waterGoalMl: number;
+  source?: 'default' | 'llm';
+  dietInsight?: string;
+  workoutInsight?: string;
+  workoutTips?: WorkoutTip[];
 };
 
 export type DailyState = {
