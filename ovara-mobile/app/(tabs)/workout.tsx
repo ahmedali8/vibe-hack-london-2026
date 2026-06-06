@@ -4,12 +4,16 @@ import {
 } from 'react-native';
 import { Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { EditFieldsModal, type EditField } from '../../components/EditFieldsModal';
+import { SwipeableCard } from '../../components/SwipeableCard';
 import { loadPlanWithLlm } from '../../lib/plan-llm';
 import {
   computePhase,
-  type OvaraProfile, type DailyPlan, type WorkoutTip,
+  savePlan,
+  type OvaraProfile, type DailyPlan, type Workout, type WorkoutTip,
 } from '../../lib/storage';
 import { colors } from '../../lib/colors';
+import { toCardTitle, toSentenceCase } from '../../lib/format';
 
 function phaseTips(phase: string): WorkoutTip[] {
   switch (phase) {
@@ -47,6 +51,13 @@ export default function WorkoutTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [llmReady, setLlmReady] = useState(false);
   const [llmError, setLlmError] = useState<string | null>(null);
+  const [editingTipIndex, setEditingTipIndex] = useState<number | null>(null);
+  const [editingWorkout, setEditingWorkout] = useState(false);
+
+  const persistPlan = async (next: DailyPlan) => {
+    setPlan(next);
+    await savePlan(next);
+  };
 
   const load = useCallback(async (forceRefresh = false) => {
     if (forceRefresh) setRefreshing(true);
@@ -81,6 +92,62 @@ export default function WorkoutTab() {
   const phaseInfo = computePhase(profile.cycleStartDate);
   const tips = plan.workoutTips?.length ? plan.workoutTips : phaseTips(phaseInfo.phase);
 
+  const tipsOnPlan = (): WorkoutTip[] =>
+    plan.workoutTips?.length ? [...plan.workoutTips] : [...tips];
+
+  const saveTips = async (nextTips: WorkoutTip[]) => {
+    if (!plan) return;
+    await persistPlan({ ...plan, workoutTips: nextTips });
+  };
+
+  const saveTipEdit = async (values: Record<string, string>) => {
+    if (!plan || editingTipIndex === null) return;
+    const next = tipsOnPlan();
+    next[editingTipIndex] = {
+      emoji: values.emoji?.trim() || next[editingTipIndex].emoji,
+      title: values.title?.trim() || next[editingTipIndex].title,
+      body: values.body?.trim() || next[editingTipIndex].body,
+    };
+    await saveTips(next);
+    setEditingTipIndex(null);
+  };
+
+  const deleteTip = async (index: number) => {
+    const next = tipsOnPlan().filter((_, i) => i !== index);
+    await saveTips(next);
+  };
+
+  const saveWorkoutEdit = async (values: Record<string, string>) => {
+    if (!plan) return;
+    const workout: Workout = {
+      ...plan.workout,
+      emoji: values.emoji?.trim() || plan.workout.emoji,
+      title: values.title?.trim() || plan.workout.title,
+      duration: values.duration?.trim() || plan.workout.duration,
+      intensity: values.intensity?.trim() || plan.workout.intensity,
+      note: values.note?.trim() || plan.workout.note,
+    };
+    await persistPlan({ ...plan, workout });
+    setEditingWorkout(false);
+  };
+
+  const editingTip = editingTipIndex !== null ? tipsOnPlan()[editingTipIndex] : null;
+  const tipEditFields: EditField[] = editingTip
+    ? [
+        { key: 'emoji', label: 'Emoji', value: editingTip.emoji },
+        { key: 'title', label: 'Title', value: editingTip.title },
+        { key: 'body', label: 'Body', value: editingTip.body, multiline: true },
+      ]
+    : [];
+
+  const workoutEditFields: EditField[] = [
+    { key: 'emoji', label: 'Emoji', value: plan.workout.emoji },
+    { key: 'title', label: 'Title', value: plan.workout.title },
+    { key: 'duration', label: 'Duration', value: plan.workout.duration },
+    { key: 'intensity', label: 'Intensity', value: plan.workout.intensity },
+    { key: 'note', label: 'Note', value: plan.workout.note, multiline: true },
+  ];
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -107,7 +174,7 @@ export default function WorkoutTab() {
         {plan.workoutInsight ? (
           <View style={styles.insightCard}>
             <Text style={styles.insightBadge}>✨ personalized</Text>
-            <Text style={styles.insightText}>{plan.workoutInsight}</Text>
+            <Text style={styles.insightText}>{toSentenceCase(plan.workoutInsight)}</Text>
           </View>
         ) : null}
 
@@ -117,37 +184,67 @@ export default function WorkoutTab() {
           </View>
         ) : null}
 
-        <View style={styles.workoutCard}>
-          <View style={styles.workoutIconWrap}>
-            <Text style={{ fontSize: 32 }}>{plan.workout.emoji}</Text>
-          </View>
-          <Text style={styles.workoutName}>{plan.workout.title}</Text>
-          <View style={styles.workoutMeta}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>⏱ {plan.workout.duration}</Text>
+        <SwipeableCard
+          onEdit={() => setEditingWorkout(true)}
+          canDelete={false}
+          borderRadius={28}
+          backgroundColor={colors.sageMuted}
+          borderColor={colors.sageBorder}
+        >
+          <View style={styles.workoutCard}>
+            <View style={styles.workoutIconWrap}>
+              <Text style={{ fontSize: 32 }}>{plan.workout.emoji}</Text>
             </View>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>🔥 {plan.workout.intensity}</Text>
+            <Text style={styles.workoutName}>{toCardTitle(plan.workout.title)}</Text>
+            <View style={styles.workoutMeta}>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>⏱ {plan.workout.duration}</Text>
+              </View>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>🔥 {toCardTitle(plan.workout.intensity)}</Text>
+              </View>
             </View>
+            <Text style={styles.workoutNote}>{toSentenceCase(plan.workout.note)}</Text>
           </View>
-          <Text style={styles.workoutNote}>{plan.workout.note}</Text>
-        </View>
+        </SwipeableCard>
 
         <Text style={[styles.sectionLabel, { marginTop: 8 }]}>
           {plan.source === 'llm' ? 'AI movement tips' : 'Movement tips for this phase'}
         </Text>
-        {tips.map((tip) => (
-          <View key={tip.title} style={styles.tipCard}>
-            <Text style={styles.tipEmoji}>{tip.emoji}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.tipTitle}>{tip.title}</Text>
-              <Text style={styles.tipBody}>{tip.body}</Text>
+        {tips.map((tip, index) => (
+          <SwipeableCard
+            key={`${tip.title}-${index}`}
+            onEdit={() => setEditingTipIndex(index)}
+            onDelete={() => deleteTip(index)}
+            canDelete={tips.length > 1}
+          >
+            <View style={styles.tipCard}>
+              <Text style={styles.tipEmoji}>{tip.emoji}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.tipTitle}>{toCardTitle(tip.title)}</Text>
+                <Text style={styles.tipBody}>{toSentenceCase(tip.body)}</Text>
+              </View>
             </View>
-          </View>
+          </SwipeableCard>
         ))}
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <EditFieldsModal
+        visible={editingTipIndex !== null}
+        title="Edit movement tip"
+        fields={tipEditFields}
+        onSave={saveTipEdit}
+        onClose={() => setEditingTipIndex(null)}
+      />
+      <EditFieldsModal
+        visible={editingWorkout}
+        title="Edit today's workout"
+        fields={workoutEditFields}
+        onSave={saveWorkoutEdit}
+        onClose={() => setEditingWorkout(false)}
+      />
 
       <Link href="/chat" asChild>
         <Pressable style={({ pressed }) => [styles.fab, pressed && { opacity: 0.85 }]}>
@@ -196,8 +293,7 @@ const styles = StyleSheet.create({
   errorText: { fontFamily: 'Nunito_400Regular', fontSize: 12, color: colors.inkDim, lineHeight: 18 },
 
   workoutCard: {
-    backgroundColor: colors.sageMuted, borderRadius: 28, borderWidth: 1.5,
-    borderColor: colors.sageBorder, padding: 24, alignItems: 'center', marginBottom: 16,
+    padding: 24, alignItems: 'center',
   },
   workoutIconWrap: {
     width: 72, height: 72, borderRadius: 24, backgroundColor: colors.white,
@@ -213,9 +309,7 @@ const styles = StyleSheet.create({
   workoutNote: { fontFamily: 'Nunito_400Regular', fontSize: 13, color: colors.inkDim, textAlign: 'center', lineHeight: 20 },
 
   tipCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 14,
-    backgroundColor: colors.white, borderRadius: 20, borderWidth: 1,
-    borderColor: colors.border, padding: 16, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 16,
   },
   tipEmoji: { fontSize: 26, lineHeight: 32 },
   tipTitle: { fontFamily: 'Nunito_600SemiBold', fontSize: 15, color: colors.ink, marginBottom: 2 },

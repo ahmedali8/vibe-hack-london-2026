@@ -4,12 +4,15 @@ import {
 } from 'react-native';
 import { Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { EditFieldsModal, type EditField } from '../../components/EditFieldsModal';
+import { SwipeableCard } from '../../components/SwipeableCard';
 import { loadPlanWithLlm } from '../../lib/plan-llm';
 import {
-  getState, saveState,
-  type OvaraProfile, type DailyPlan, type DailyState,
+  getState, savePlan, saveState,
+  type Meal, type OvaraProfile, type DailyPlan, type DailyState,
 } from '../../lib/storage';
 import { colors } from '../../lib/colors';
+import { toCardTitle, toSentenceCase } from '../../lib/format';
 
 function greeting() {
   const h = new Date().getHours();
@@ -26,7 +29,44 @@ export default function DietTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [llmReady, setLlmReady] = useState(false);
   const [llmError, setLlmError] = useState<string | null>(null);
+  const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const waterAnim = useRef(new Animated.Value(0)).current;
+
+  const persistPlan = async (next: DailyPlan) => {
+    setPlan(next);
+    await savePlan(next);
+  };
+
+  const openEditMeal = (meal: Meal) => setEditingMeal(meal);
+
+  const saveMealEdit = async (values: Record<string, string>) => {
+    if (!plan || !editingMeal) return;
+    const nextMeals = plan.meals.map((m) =>
+      m.id === editingMeal.id
+        ? {
+            ...m,
+            emoji: values.emoji?.trim() || m.emoji,
+            title: values.title?.trim() || m.title,
+            note: values.note?.trim() || m.note,
+          }
+        : m,
+    );
+    await persistPlan({ ...plan, meals: nextMeals });
+    setEditingMeal(null);
+  };
+
+  const deleteMeal = async (mealId: string) => {
+    if (!plan || plan.meals.length <= 1) return;
+    await persistPlan({ ...plan, meals: plan.meals.filter((m) => m.id !== mealId) });
+  };
+
+  const mealEditFields: EditField[] = editingMeal
+    ? [
+        { key: 'emoji', label: 'Emoji', value: editingMeal.emoji },
+        { key: 'title', label: 'Title', value: editingMeal.title },
+        { key: 'note', label: 'Note', value: editingMeal.note, multiline: true },
+      ]
+    : [];
 
   const load = useCallback(async (forceRefresh = false) => {
     if (forceRefresh) setRefreshing(true);
@@ -111,7 +151,7 @@ export default function DietTab() {
         {plan.dietInsight ? (
           <View style={styles.insightCard}>
             <Text style={styles.insightBadge}>✨ personalized</Text>
-            <Text style={styles.insightText}>{plan.dietInsight}</Text>
+            <Text style={styles.insightText}>{toSentenceCase(plan.dietInsight)}</Text>
           </View>
         ) : null}
 
@@ -122,16 +162,23 @@ export default function DietTab() {
         ) : null}
 
         {plan.meals.map((m) => (
-          <View key={m.id} style={styles.mealCard}>
-            <View style={styles.mealIconWrap}>
-              <Text style={{ fontSize: 22 }}>{m.emoji}</Text>
+          <SwipeableCard
+            key={m.id}
+            onEdit={() => openEditMeal(m)}
+            onDelete={() => deleteMeal(m.id)}
+            canDelete={plan.meals.length > 1}
+          >
+            <View style={styles.mealCard}>
+              <View style={styles.mealIconWrap}>
+                <Text style={{ fontSize: 22 }}>{m.emoji}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.mealLabel}>{m.label}</Text>
+                <Text style={styles.mealTitle}>{toCardTitle(m.title)}</Text>
+                <Text style={styles.mealNote}>{toSentenceCase(m.note)}</Text>
+              </View>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.mealLabel}>{m.label}</Text>
-              <Text style={styles.mealTitle}>{m.title}</Text>
-              <Text style={styles.mealNote}>{m.note}</Text>
-            </View>
-          </View>
+          </SwipeableCard>
         ))}
 
         <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Hydration</Text>
@@ -163,6 +210,14 @@ export default function DietTab() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <EditFieldsModal
+        visible={editingMeal !== null}
+        title={editingMeal ? `Edit ${editingMeal.label}` : 'Edit meal'}
+        fields={mealEditFields}
+        onSave={saveMealEdit}
+        onClose={() => setEditingMeal(null)}
+      />
 
       <Link href="/chat" asChild>
         <Pressable style={({ pressed }) => [styles.fab, pressed && { opacity: 0.85 }]}>
@@ -211,9 +266,7 @@ const styles = StyleSheet.create({
   errorText: { fontFamily: 'Nunito_400Regular', fontSize: 12, color: colors.inkDim, lineHeight: 18 },
 
   mealCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 14,
-    backgroundColor: colors.white, borderRadius: 20, borderWidth: 1,
-    borderColor: colors.border, padding: 16, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 16,
   },
   mealIconWrap: {
     width: 44, height: 44, borderRadius: 16,

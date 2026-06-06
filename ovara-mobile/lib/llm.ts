@@ -1,3 +1,4 @@
+import { toCardTitle, toSentenceCase } from './format';
 import type { DailyPlan, DailyState, Meal, OvaraProfile, Workout } from './storage';
 
 const ZAI_BASE_URL =
@@ -68,8 +69,8 @@ function normalizeMeals(raw: unknown): Meal[] {
       return {
         id: String(item.id ?? ['breakfast', 'lunch', 'snack', 'dinner'][i] ?? `meal-${i}`),
         label: String(item.label ?? 'Meal'),
-        title: String(item.title ?? ''),
-        note: String(item.note ?? ''),
+        title: toCardTitle(String(item.title ?? '')),
+        note: toSentenceCase(String(item.note ?? '')),
         emoji: String(item.emoji ?? '🌿'),
       };
     })
@@ -83,10 +84,10 @@ function normalizeWorkout(raw: unknown): Workout | null {
   const title = String(w.title ?? '');
   if (!title) return null;
   return {
-    title,
+    title: toCardTitle(title),
     duration: String(w.duration ?? '20 min'),
-    intensity: String(w.intensity ?? 'Gentle'),
-    note: String(w.note ?? ''),
+    intensity: toCardTitle(String(w.intensity ?? 'Gentle')),
+    note: toSentenceCase(String(w.note ?? '')),
     emoji: String(w.emoji ?? '🧘🏻‍♀️'),
   };
 }
@@ -98,8 +99,8 @@ function normalizeTips(raw: unknown): WorkoutTip[] {
       const item = t as Record<string, unknown>;
       return {
         emoji: String(item.emoji ?? '✨'),
-        title: String(item.title ?? ''),
-        body: String(item.body ?? ''),
+        title: toCardTitle(String(item.title ?? '')),
+        body: toSentenceCase(String(item.body ?? '')),
       };
     })
     .filter((t) => t.title && t.body)
@@ -114,9 +115,9 @@ export function parseLlmPlanResponse(text: string): LlmPlanPayload | null {
     if (meals.length < 3 || !workout) return null;
 
     return {
-      dietInsight: String(parsed.dietInsight ?? '').trim(),
+      dietInsight: toSentenceCase(String(parsed.dietInsight ?? '').trim()),
       meals,
-      workoutInsight: String(parsed.workoutInsight ?? '').trim(),
+      workoutInsight: toSentenceCase(String(parsed.workoutInsight ?? '').trim()),
       workout,
       workoutTips: normalizeTips(parsed.workoutTips),
     };
@@ -133,7 +134,9 @@ type PlanContext = {
 
 const SYSTEM_PROMPT = `You are Ovara — a warm wellness companion for women with PCOS and/or endometriosis.
 Return ONLY valid JSON (no markdown prose outside the JSON).
-Tone: gentle, lowercase-friendly, never clinical, never alarming. Not medical advice.
+Tone: gentle, never clinical, never alarming. Not medical advice.
+Use Title Case for meal titles, workout title, workoutTips titles, and intensity (e.g. "Berry Chia Parfait", "Gentle").
+Capitalize the first letter of each sentence in notes, insights, and tip bodies.
 Meals should respect diet preferences and support blood sugar / inflammation where relevant.
 Workout should match cycle phase and fitness level — gentle when appropriate.`;
 
