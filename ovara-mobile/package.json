@@ -37,5 +37,10 @@
     "@types/react": "~19.1.10",
     "typescript": "~5.9.2"
   },
+  "pnpm": {
+    "overrides": {
+      "react-native-worklets": "0.5.1"
+    }
+  },
   "private": true
 }

@@ -42,14 +42,53 @@ export type PlanUpdate = {
   changes: { label: string; before?: string; after: string }[];
 };
 
+export type PeriodLog = { startDate: string; endDate?: string };
+
+export type DailyTask = { emoji: string; task: string; done?: boolean };
+
+export type DailyTasks = {
+  date: string;
+  dayOfCycle: number;
+  tasks: DailyTask[];
+};
+
+export type CycleStats = {
+  avgCycleLength: number;
+  avgPeriodLength: number;
+  lastPeriodStart: string | null;
+  nextPeriodDate: string | null;
+  cycleCount: number;
+  isPrediction: boolean;
+};
+
+const DEFAULT_CYCLE_LENGTH = 28;
+const DEFAULT_PERIOD_LENGTH = 5;
+
 const KEYS = {
   profile: 'ovara.profile.v1',
   plan: 'ovara.plan.v1',
   state: 'ovara.state.v1',
+  periods: 'ovara.periods.v1',
+  tasks: 'ovara.tasks.v1',
 } as const;
 
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function daysBetween(a: string, b: string): number {
+  const ms = new Date(b).getTime() - new Date(a).getTime();
+  return Math.round(ms / (1000 * 60 * 60 * 24));
+}
+
+export function addDaysISO(dateISO: string, days: number): string {
+  const d = new Date(dateISO);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
 }
 
 async function read<T>(key: string): Promise<T | null> {
@@ -97,26 +136,137 @@ export async function clearAll(): Promise<void> {
   await Promise.all(Object.values(KEYS).map((k) => SecureStore.deleteItemAsync(k)));
 }
 
-export function computePhase(cycleStartDate: string, today = new Date()) {
+export async function getCachedTasks(): Promise<DailyTasks | null> {
+  const t = await read<DailyTasks>(KEYS.tasks);
+  if (t && t.date === todayISO()) return t;
+  return null;
+}
+
+export async function saveCachedTasks(t: DailyTasks): Promise<void> {
+  await write(KEYS.tasks, t);
+}
+
+export async function getPeriods(): Promise<PeriodLog[]> {
+  const list = (await read<PeriodLog[]>(KEYS.periods)) ?? [];
+  return list.slice().sort((a, b) => a.startDate.localeCompare(b.startDate));
+}
+
+export async function savePeriods(list: PeriodLog[]): Promise<void> {
+  await write(KEYS.periods, list);
+}
+
+export async function addPeriodStart(startDate: string): Promise<PeriodLog[]> {
+  const list = await getPeriods();
+  if (!list.some((p) => p.startDate === startDate)) {
+    list.push({ startDate });
+    list.sort((a, b) => a.startDate.localeCompare(b.startDate));
+    await savePeriods(list);
+  }
+  return list;
+}
+
+export async function setPeriodEnd(startDate: string, endDate: string): Promise<PeriodLog[]> {
+  const list = await getPeriods();
+  const match = list.find((p) => p.startDate === startDate);
+  if (match) {
+    match.endDate = endDate;
+    await savePeriods(list);
+  }
+  return list;
+}
+
+export async function removePeriod(startDate: string): Promise<PeriodLog[]> {
+  const list = (await getPeriods()).filter((p) => p.startDate !== startDate);
+  await savePeriods(list);
+  return list;
+}
+
+export function computeCycleStats(periods: PeriodLog[]): CycleStats {
+  const starts = periods.map((p) => p.startDate).sort();
+
+  if (starts.length === 0) {
+    return {
+      avgCycleLength: DEFAULT_CYCLE_LENGTH,
+      avgPeriodLength: DEFAULT_PERIOD_LENGTH,
+      lastPeriodStart: null,
+      nextPeriodDate: null,
+      cycleCount: 0,
+      isPrediction: false,
+    };
+  }
+
+  const gaps: number[] = [];
+  for (let i = 1; i < starts.length; i++) {
+    const gap = daysBetween(starts[i - 1], starts[i]);
+    if (gap > 0) gaps.push(gap);
+  }
+  const avgCycleLength = gaps.length
+    ? clamp(Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length), 21, 40)
+    : DEFAULT_CYCLE_LENGTH;
+
+  const periodLengths = periods
+    .filter((p) => p.endDate)
+    .map((p) => daysBetween(p.startDate, p.endDate as string) + 1)
+    .filter((n) => n > 0);
+  const avgPeriodLength = periodLengths.length
+    ? clamp(Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length), 2, 10)
+    : DEFAULT_PERIOD_LENGTH;
+
+  const lastPeriodStart = starts[starts.length - 1];
+
+  return {
+    avgCycleLength,
+    avgPeriodLength,
+    lastPeriodStart,
+    nextPeriodDate: addDaysISO(lastPeriodStart, avgCycleLength),
+    cycleCount: gaps.length,
+    isPrediction: gaps.length > 0,
+  };
+}
+
+export function phaseRanges(
+  cycleLength: number = DEFAULT_CYCLE_LENGTH,
+  periodLength: number = DEFAULT_PERIOD_LENGTH
+): { key: CyclePhase; start: number; end: number }[] {
+  const ovulation = cycleLength - 14;
+  const periodEnd = clamp(periodLength, 1, ovulation - 3);
+  return [
+    { key: 'menstrual', start: 1, end: periodEnd },
+    { key: 'follicular', start: periodEnd + 1, end: ovulation - 2 },
+    { key: 'ovulatory', start: ovulation - 1, end: ovulation + 1 },
+    { key: 'luteal', start: ovulation + 2, end: cycleLength },
+  ];
+}
+
+export function phaseForDay(
+  day: number,
+  cycleLength: number = DEFAULT_CYCLE_LENGTH,
+  periodLength: number = DEFAULT_PERIOD_LENGTH
+): CyclePhase {
+  const ranges = phaseRanges(cycleLength, periodLength);
+  return ranges.find((r) => day >= r.start && day <= r.end)?.key ?? 'menstrual';
+}
+
+const PHASE_META: Record<CyclePhase, { label: string; blurb: string; emoji: string }> = {
+  menstrual: { label: 'Menstrual phase', blurb: 'Slow down. Warm food, gentle stretches, lots of rest.', emoji: '🌙' },
+  follicular: { label: 'Follicular phase', blurb: 'Energy is rising. A lovely time to move.', emoji: '🌱' },
+  ovulatory: { label: 'Ovulatory phase', blurb: 'Feeling bright? Channel it into something you love.', emoji: '✨' },
+  luteal: { label: 'Luteal phase', blurb: 'Settle inward. Cozy food and softer workouts.', emoji: '🌸' },
+};
+
+export function computePhase(
+  cycleStartDate: string,
+  today = new Date(),
+  cycleLength: number = DEFAULT_CYCLE_LENGTH,
+  periodLength: number = DEFAULT_PERIOD_LENGTH
+) {
   const start = new Date(cycleStartDate);
   const ms = today.getTime() - start.getTime();
   const day = Math.max(1, Math.floor(ms / (1000 * 60 * 60 * 24)) + 1);
-  const dayOfCycle = ((day - 1) % 28) + 1;
+  const dayOfCycle = ((day - 1) % cycleLength) + 1;
 
-  let phase: CyclePhase;
-  if (dayOfCycle <= 5) phase = 'menstrual';
-  else if (dayOfCycle <= 13) phase = 'follicular';
-  else if (dayOfCycle <= 16) phase = 'ovulatory';
-  else phase = 'luteal';
-
-  const meta = {
-    menstrual: { label: 'Menstrual phase', blurb: 'Slow down. Warm food, gentle stretches, lots of rest.', emoji: '🌙' },
-    follicular: { label: 'Follicular phase', blurb: 'Energy is rising. A lovely time to move.', emoji: '🌱' },
-    ovulatory: { label: 'Ovulatory phase', blurb: 'Feeling bright? Channel it into something you love.', emoji: '✨' },
-    luteal: { label: 'Luteal phase', blurb: 'Settle inward. Cozy food and softer workouts.', emoji: '🌸' },
-  }[phase];
-
-  return { phase, dayOfCycle, ...meta };
+  const phase = phaseForDay(dayOfCycle, cycleLength, periodLength);
+  return { phase, dayOfCycle, cycleLength, ...PHASE_META[phase] };
 }
 
 export function defaultPlan(profile: OvaraProfile | null): DailyPlan {
