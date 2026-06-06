@@ -13,7 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Chip } from '../components/Chip';
-import { saveProfile, todayISO } from '../lib/storage';
+import { saveProfile, addPeriodStart, todayISO } from '../lib/storage';
 import { colors } from '../lib/colors';
 
 type StepKey = 'welcome' | 'name' | 'cycle' | 'diagnosis' | 'symptoms' | 'diet' | 'fitness';
@@ -73,6 +73,7 @@ export default function Onboarding() {
         cycleStartDate: todayISO(),
         completedAt: new Date().toISOString(),
       });
+      await addPeriodStart(todayISO());
       router.replace('/');
     } else {
       transition(() => setStepIdx((i) => i + 1));
