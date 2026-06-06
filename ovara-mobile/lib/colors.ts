@@ -6,6 +6,7 @@ export const colors = {
   inkDim: 'rgba(62,44,42,0.6)',
   rose: '#F0C4BE',
   roseMuted: 'rgba(240,196,190,0.3)',
+  roseBorder: 'rgba(240,196,190,0.45)',
   lavender: '#D4C4E9',
   lavenderMuted: 'rgba(212,196,233,0.25)',
   lavenderBorder: 'rgba(212,196,233,0.35)',

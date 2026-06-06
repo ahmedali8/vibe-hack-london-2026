@@ -1,16 +1,17 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator,
+} from 'react-native';
 import { Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { loadPlanWithLlm } from '../../lib/plan-llm';
 import {
-  getProfile, getPlan, savePlan, defaultPlan, computePhase,
-  type OvaraProfile, type DailyPlan,
+  computePhase,
+  type OvaraProfile, type DailyPlan, type WorkoutTip,
 } from '../../lib/storage';
 import { colors } from '../../lib/colors';
 
-type Tip = { emoji: string; title: string; body: string };
-
-function phaseTips(phase: string): Tip[] {
+function phaseTips(phase: string): WorkoutTip[] {
   switch (phase) {
     case 'menstrual':
       return [
@@ -27,7 +28,7 @@ function phaseTips(phase: string): Tip[] {
     case 'ovulatory':
       return [
         { emoji: '⚡', title: 'Peak performance', body: "You're at your strongest — push a little harder if it feels good." },
-        { emoji: '🏊', title: 'HIIT or swimming', body: "Intense cardio is well-tolerated right now." },
+        { emoji: '🏊', title: 'HIIT or swimming', body: 'Intense cardio is well-tolerated right now.' },
         { emoji: '🤸', title: 'Group classes', body: 'Social energy is high — team workouts feel amazing this phase.' },
       ];
     default:
@@ -42,29 +43,43 @@ function phaseTips(phase: string): Tip[] {
 export default function WorkoutTab() {
   const [profile, setProfile] = useState<OvaraProfile | null>(null);
   const [plan, setPlan] = useState<DailyPlan | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [llmReady, setLlmReady] = useState(false);
+  const [llmError, setLlmError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      const p = await getProfile();
-      setProfile(p);
-      if (p) {
-        let pl = await getPlan();
-        if (!pl) { pl = defaultPlan(p); await savePlan(pl); }
-        setPlan(pl);
-      }
-    })();
+  const load = useCallback(async (forceRefresh = false) => {
+    if (forceRefresh) setRefreshing(true);
+    else setLoading(true);
+
+    const result = await loadPlanWithLlm(forceRefresh);
+    if (result) {
+      setProfile(result.profile);
+      setPlan(result.plan);
+      setLlmReady(result.llmReady);
+      setLlmError(result.llmError);
+    }
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
-  if (!profile || !plan) {
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (loading || !profile || !plan) {
     return (
       <SafeAreaView style={styles.safe}>
-        <View style={styles.loading}><Text style={styles.loadingText}>...</Text></View>
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.sage} size="large" />
+          <Text style={styles.loadingText}>personalizing your movement…</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
   const phaseInfo = computePhase(profile.cycleStartDate);
-  const tips = phaseTips(phaseInfo.phase);
+  const tips = plan.workoutTips?.length ? plan.workoutTips : phaseTips(phaseInfo.phase);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -74,7 +89,34 @@ export default function WorkoutTab() {
           <Text style={styles.subtitle}>Tuned for {phaseInfo.label.toLowerCase()} {phaseInfo.emoji}</Text>
         </View>
 
-        <Text style={styles.sectionLabel}>Today's plan</Text>
+        <View style={styles.aiRow}>
+          <Text style={styles.sectionLabel}>Today's plan</Text>
+          <Pressable
+            onPress={() => load(true)}
+            disabled={refreshing || !llmReady}
+            style={({ pressed }) => [styles.refreshBtn, pressed && { opacity: 0.7 }]}
+          >
+            {refreshing ? (
+              <ActivityIndicator size="small" color={colors.ink} />
+            ) : (
+              <Text style={styles.refreshText}>{llmReady ? '↻ refresh' : 'default plan'}</Text>
+            )}
+          </Pressable>
+        </View>
+
+        {plan.workoutInsight ? (
+          <View style={styles.insightCard}>
+            <Text style={styles.insightBadge}>✨ personalized</Text>
+            <Text style={styles.insightText}>{plan.workoutInsight}</Text>
+          </View>
+        ) : null}
+
+        {llmError ? (
+          <View style={styles.errorCard}>
+            <Text style={styles.errorText}>{llmError}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.workoutCard}>
           <View style={styles.workoutIconWrap}>
             <Text style={{ fontSize: 32 }}>{plan.workout.emoji}</Text>
@@ -91,7 +133,9 @@ export default function WorkoutTab() {
           <Text style={styles.workoutNote}>{plan.workout.note}</Text>
         </View>
 
-        <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Movement tips for this phase</Text>
+        <Text style={[styles.sectionLabel, { marginTop: 8 }]}>
+          {plan.source === 'llm' ? 'AI movement tips' : 'Movement tips for this phase'}
+        </Text>
         {tips.map((tip) => (
           <View key={tip.title} style={styles.tipCard}>
             <Text style={styles.tipEmoji}>{tip.emoji}</Text>
@@ -116,18 +160,40 @@ export default function WorkoutTab() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { fontFamily: 'Nunito_400Regular', color: colors.inkMuted, fontSize: 24 },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { fontFamily: 'Nunito_400Regular', color: colors.inkMuted, fontSize: 14 },
   scroll: { paddingHorizontal: 20, paddingTop: 16 },
 
   header: { marginBottom: 24 },
   title: { fontFamily: 'Fraunces_600SemiBold', fontSize: 32, color: colors.ink },
   subtitle: { fontFamily: 'Nunito_400Regular', fontSize: 14, color: colors.inkDim, marginTop: 4 },
 
+  aiRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionLabel: {
     fontFamily: 'Nunito_700Bold', fontSize: 11, color: colors.inkMuted,
-    letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12,
+    letterSpacing: 1.5, textTransform: 'uppercase',
   },
+  refreshBtn: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14,
+    backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border,
+  },
+  refreshText: { fontFamily: 'Nunito_600SemiBold', fontSize: 12, color: colors.inkDim },
+
+  insightCard: {
+    backgroundColor: colors.sageMuted, borderRadius: 20, borderWidth: 1,
+    borderColor: colors.sageBorder, padding: 16, marginBottom: 16,
+  },
+  insightBadge: {
+    fontFamily: 'Nunito_700Bold', fontSize: 10, color: colors.inkMuted,
+    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8,
+  },
+  insightText: { fontFamily: 'Nunito_400Regular', fontSize: 14, color: colors.ink, lineHeight: 22 },
+
+  errorCard: {
+    backgroundColor: colors.amberMuted, borderRadius: 16, borderWidth: 1,
+    borderColor: colors.amberBorder, padding: 12, marginBottom: 12,
+  },
+  errorText: { fontFamily: 'Nunito_400Regular', fontSize: 12, color: colors.inkDim, lineHeight: 18 },
 
   workoutCard: {
     backgroundColor: colors.sageMuted, borderRadius: 28, borderWidth: 1.5,

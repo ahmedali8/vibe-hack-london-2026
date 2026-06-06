@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet, Animated,
+  View, Text, ScrollView, Pressable, StyleSheet, Animated, ActivityIndicator,
 } from 'react-native';
 import { Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { loadPlanWithLlm } from '../../lib/plan-llm';
 import {
-  getProfile, getPlan, getState, saveState, savePlan, defaultPlan,
+  getState, saveState,
   type OvaraProfile, type DailyPlan, type DailyState,
 } from '../../lib/storage';
 import { colors } from '../../lib/colors';
@@ -21,20 +22,31 @@ export default function DietTab() {
   const [profile, setProfile] = useState<OvaraProfile | null>(null);
   const [plan, setPlan] = useState<DailyPlan | null>(null);
   const [state, setState] = useState<DailyState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [llmReady, setLlmReady] = useState(false);
+  const [llmError, setLlmError] = useState<string | null>(null);
   const waterAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    (async () => {
-      const p = await getProfile();
-      setProfile(p);
-      if (p) {
-        let pl = await getPlan();
-        if (!pl) { pl = defaultPlan(p); await savePlan(pl); }
-        setPlan(pl);
-        setState(await getState());
-      }
-    })();
+  const load = useCallback(async (forceRefresh = false) => {
+    if (forceRefresh) setRefreshing(true);
+    else setLoading(true);
+
+    const result = await loadPlanWithLlm(forceRefresh);
+    if (result) {
+      setProfile(result.profile);
+      setPlan(result.plan);
+      setLlmReady(result.llmReady);
+      setLlmError(result.llmError);
+    }
+    setState(await getState());
+    setLoading(false);
+    setRefreshing(false);
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   useEffect(() => {
     if (!plan || !state) return;
@@ -59,10 +71,13 @@ export default function DietTab() {
     await saveState(next);
   };
 
-  if (!profile || !plan || !state) {
+  if (loading || !profile || !plan || !state) {
     return (
       <SafeAreaView style={styles.safe}>
-        <View style={styles.loading}><Text style={styles.loadingText}>…</Text></View>
+        <View style={styles.loading}>
+          <ActivityIndicator color={colors.rose} size="large" />
+          <Text style={styles.loadingText}>personalizing your nourishment…</Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -73,16 +88,39 @@ export default function DietTab() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.date}>{today}</Text>
           <Text style={styles.greeting}>{greeting()}, {profile.name} ✨</Text>
         </View>
 
-        {/* Section label */}
-        <Text style={styles.sectionLabel}>Today's nourishment</Text>
+        <View style={styles.aiRow}>
+          <Text style={styles.sectionLabel}>Today's nourishment</Text>
+          <Pressable
+            onPress={() => load(true)}
+            disabled={refreshing || !llmReady}
+            style={({ pressed }) => [styles.refreshBtn, pressed && { opacity: 0.7 }]}
+          >
+            {refreshing ? (
+              <ActivityIndicator size="small" color={colors.ink} />
+            ) : (
+              <Text style={styles.refreshText}>{llmReady ? '↻ refresh' : 'default plan'}</Text>
+            )}
+          </Pressable>
+        </View>
 
-        {/* Meal cards */}
+        {plan.dietInsight ? (
+          <View style={styles.insightCard}>
+            <Text style={styles.insightBadge}>✨ personalized</Text>
+            <Text style={styles.insightText}>{plan.dietInsight}</Text>
+          </View>
+        ) : null}
+
+        {llmError ? (
+          <View style={styles.errorCard}>
+            <Text style={styles.errorText}>{llmError}</Text>
+          </View>
+        ) : null}
+
         {plan.meals.map((m) => (
           <View key={m.id} style={styles.mealCard}>
             <View style={styles.mealIconWrap}>
@@ -96,7 +134,6 @@ export default function DietTab() {
           </View>
         ))}
 
-        {/* Hydration */}
         <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Hydration</Text>
         <View style={[styles.card, { backgroundColor: colors.amberMuted, borderColor: colors.amberBorder }]}>
           <View style={styles.hydrationHeader}>
@@ -138,18 +175,40 @@ export default function DietTab() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { fontFamily: 'Nunito_400Regular', color: colors.inkMuted, fontSize: 24 },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { fontFamily: 'Nunito_400Regular', color: colors.inkMuted, fontSize: 14 },
   scroll: { paddingHorizontal: 20, paddingTop: 16 },
 
   header: { marginBottom: 24 },
   date: { fontFamily: 'Nunito_700Bold', fontSize: 11, color: colors.inkMuted, letterSpacing: 1.5, textTransform: 'uppercase' },
   greeting: { fontFamily: 'Fraunces_600SemiBold', fontSize: 26, color: colors.ink, marginTop: 4 },
 
+  aiRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionLabel: {
     fontFamily: 'Nunito_700Bold', fontSize: 11, color: colors.inkMuted,
-    letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 12,
+    letterSpacing: 1.5, textTransform: 'uppercase',
   },
+  refreshBtn: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14,
+    backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border,
+  },
+  refreshText: { fontFamily: 'Nunito_600SemiBold', fontSize: 12, color: colors.inkDim },
+
+  insightCard: {
+    backgroundColor: colors.roseMuted, borderRadius: 20, borderWidth: 1,
+    borderColor: colors.roseBorder, padding: 16, marginBottom: 16,
+  },
+  insightBadge: {
+    fontFamily: 'Nunito_700Bold', fontSize: 10, color: colors.inkMuted,
+    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8,
+  },
+  insightText: { fontFamily: 'Nunito_400Regular', fontSize: 14, color: colors.ink, lineHeight: 22 },
+
+  errorCard: {
+    backgroundColor: colors.amberMuted, borderRadius: 16, borderWidth: 1,
+    borderColor: colors.amberBorder, padding: 12, marginBottom: 12,
+  },
+  errorText: { fontFamily: 'Nunito_400Regular', fontSize: 12, color: colors.inkDim, lineHeight: 18 },
 
   mealCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 14,
