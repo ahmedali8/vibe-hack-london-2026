@@ -49,7 +49,6 @@ export default function WorkoutTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [llmReady, setLlmReady] = useState(false);
-  const [llmError, setLlmError] = useState<string | null>(null);
   const [editingTipIndex, setEditingTipIndex] = useState<number | null>(null);
   const [editingWorkout, setEditingWorkout] = useState(false);
 
@@ -67,7 +66,6 @@ export default function WorkoutTab() {
       setProfile(result.profile);
       setPlan(result.plan);
       setLlmReady(result.llmReady);
-      setLlmError(result.llmError);
     }
     setLoading(false);
     setRefreshing(false);
@@ -177,12 +175,6 @@ export default function WorkoutTab() {
           </View>
         ) : null}
 
-        {llmError ? (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorText}>{llmError}</Text>
-          </View>
-        ) : null}
-
         <SwipeableCard
           onEdit={() => setEditingWorkout(true)}
           canDelete={false}
@@ -278,12 +270,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8,
   },
   insightText: { fontFamily: 'Nunito_400Regular', fontSize: 14, color: colors.ink, lineHeight: 22 },
-
-  errorCard: {
-    backgroundColor: colors.amberMuted, borderRadius: 16, borderWidth: 1,
-    borderColor: colors.amberBorder, padding: 12, marginBottom: 12,
-  },
-  errorText: { fontFamily: 'Nunito_400Regular', fontSize: 12, color: colors.inkDim, lineHeight: 18 },
 
   workoutCard: {
     padding: 24, alignItems: 'center',

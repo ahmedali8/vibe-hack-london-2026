@@ -1,14 +1,9 @@
-// GLM-5 (Z.AI) client for generating gentle, cycle-aware daily to-dos.
-//
-// The API key is read from an environment variable (EXPO_PUBLIC_ZAI_API_KEY),
-// configured in a local, gitignored .env file. See .env.example.
-const ZAI_API_KEY = process.env.EXPO_PUBLIC_ZAI_API_KEY?.trim();
-const ZAI_BASE_URL =
-  process.env.EXPO_PUBLIC_ZAI_BASE_URL ?? 'https://api.z.ai/api/coding/paas/v4';
-const ZAI_MODEL = process.env.EXPO_PUBLIC_ZAI_MODEL ?? 'GLM-5';
+// Generates gentle, cycle-aware daily to-dos through the shared AI layer
+// (lib/aiChat.ts): Claude primary, GLM fallback. One key set drives the whole app.
+import { chat, hasAiKey } from './aiChat';
 
 export function hasGlmApiKey(): boolean {
-  return Boolean(ZAI_API_KEY);
+  return hasAiKey();
 }
 
 export type DailyTask = { emoji: string; task: string };
@@ -53,7 +48,7 @@ function parseTasks(content: string): DailyTask[] {
   const end = cleaned.lastIndexOf(']');
   const json = start >= 0 && end > start ? cleaned.slice(start, end + 1) : cleaned;
   const parsed = JSON.parse(json);
-  if (!Array.isArray(parsed)) throw new Error('Model did not return an array');
+  if (!Array.isArray(parsed)) throw new Error('AI did not return an array');
   return parsed
     .filter((t) => t && typeof t.task === 'string')
     .slice(0, 3)
@@ -61,33 +56,11 @@ function parseTasks(content: string): DailyTask[] {
 }
 
 export async function getDailyTasks(ctx: TaskContext): Promise<DailyTask[]> {
-  if (!ZAI_API_KEY) {
-    throw new Error('Missing EXPO_PUBLIC_ZAI_API_KEY');
-  }
-  const base = ZAI_BASE_URL.replace(/\/$/, '');
-  const res = await fetch(`${base}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${ZAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: ZAI_MODEL,
-      temperature: 0.7,
-      max_tokens: 300,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(ctx) },
-      ],
-    }),
+  const content = await chat(SYSTEM_PROMPT, buildUserPrompt(ctx), {
+    maxTokens: 300,
+    temperature: 0.7,
+    primary: 'claude', // Claude-first; GLM is the fallback
   });
-
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`Z.AI request failed (${res.status}): ${detail.slice(0, 200)}`);
-  }
-  const data = await res.json();
-  const content: string | undefined = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Z.AI returned no content');
+  if (!content) throw new Error('AI returned no content for daily tasks');
   return parseTasks(content);
 }
