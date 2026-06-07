@@ -28,7 +28,6 @@ export default function DietTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [llmReady, setLlmReady] = useState(false);
-  const [llmError, setLlmError] = useState<string | null>(null);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const waterAnim = useRef(new Animated.Value(0)).current;
 
@@ -77,7 +76,6 @@ export default function DietTab() {
       setProfile(result.profile);
       setPlan(result.plan);
       setLlmReady(result.llmReady);
-      setLlmError(result.llmError);
     }
     setState(await getState());
     setLoading(false);
@@ -152,12 +150,6 @@ export default function DietTab() {
           <View style={styles.insightCard}>
             <Text style={styles.insightBadge}>✨ personalized</Text>
             <Text style={styles.insightText}>{toSentenceCase(plan.dietInsight)}</Text>
-          </View>
-        ) : null}
-
-        {llmError ? (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorText}>{llmError}</Text>
           </View>
         ) : null}
 
@@ -258,12 +250,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8,
   },
   insightText: { fontFamily: 'Nunito_400Regular', fontSize: 14, color: colors.ink, lineHeight: 22 },
-
-  errorCard: {
-    backgroundColor: colors.amberMuted, borderRadius: 16, borderWidth: 1,
-    borderColor: colors.amberBorder, padding: 12, marginBottom: 12,
-  },
-  errorText: { fontFamily: 'Nunito_400Regular', fontSize: 12, color: colors.inkDim, lineHeight: 18 },
 
   mealCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 16,

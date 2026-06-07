@@ -21,7 +21,6 @@ export type PlanLoadResult = {
   plan: DailyPlan;
   profile: OvaraProfile;
   llmReady: boolean;
-  llmError: string | null;
   fromLlm: boolean;
 };
 
@@ -32,12 +31,7 @@ export async function loadPlanWithLlm(forceRefresh = false): Promise<PlanLoadRes
   const state = await getState();
   let plan = (await getPlan()) ?? defaultPlan(profile);
   const llmReady = hasLlmApiKey();
-  let llmError: string | null = null;
   let fromLlm = plan.source === 'llm';
-
-  if (!llmReady) {
-    llmError = 'Add EXPO_PUBLIC_GLM_API_KEY (or EXPO_PUBLIC_CLAUDE_API_KEY) in .env for personalized plans.';
-  }
 
   const needsLlm = llmReady && (forceRefresh || plan.source !== 'llm');
 
@@ -58,9 +52,9 @@ export async function loadPlanWithLlm(forceRefresh = false): Promise<PlanLoadRes
         plan = applyLlmPlan({ ...plan, date: state.date }, llm);
         await savePlan(plan);
         fromLlm = true;
-        llmError = null;
       } else {
-        llmError = 'Could not parse AI plan — showing defaults.';
+        // Generation returned nothing usable — silently keep defaults (no UI error).
+        console.warn('Plan generation returned no usable result; using defaults.');
         if (forceRefresh && plan.source !== 'llm') {
           plan = defaultPlan(profile);
           await savePlan(plan);
@@ -68,10 +62,11 @@ export async function loadPlanWithLlm(forceRefresh = false): Promise<PlanLoadRes
         fromLlm = false;
       }
     } catch (err) {
-      llmError = err instanceof Error ? err.message : 'AI plan failed';
+      // Provider/network error — silently fall back to current plan, log only.
+      console.warn('Plan generation failed:', err instanceof Error ? err.message : err);
       fromLlm = plan.source === 'llm';
     }
   }
 
-  return { plan, profile, llmReady, llmError, fromLlm };
+  return { plan, profile, llmReady, fromLlm };
 }

@@ -29,6 +29,13 @@ import { CycleWheel, PHASE_STYLE } from '../../components/CycleWheel';
 import { CalendarBar, DAY_W, CYCLES, MID_CYCLE } from '../../components/CalendarBar';
 import { dayStatus } from '../../lib/dayStatus';
 import { getDailyTasks } from '../../lib/glm';
+
+// Shown silently if AI to-dos can't be fetched — we never surface an error in the UI.
+const DEFAULT_TASKS: DailyTask[] = [
+  { emoji: '💧', task: 'Sip water through the day' },
+  { emoji: '🌿', task: 'A gentle 10-minute walk' },
+  { emoji: '😌', task: 'Three slow breaths, unhurried' },
+];
 import type Animated from 'react-native-reanimated';
 
 const WHEEL_CENTER = 160;
@@ -43,7 +50,6 @@ export default function CycleTab() {
   const [selectedOffset, setSelectedOffset] = useState(0);
   const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
-  const [tasksError, setTasksError] = useState(false);
 
   const scrollX = useSharedValue((MID_CYCLE * 28) * DAY_W);
   const prevAngle = useSharedValue(0);
@@ -65,7 +71,6 @@ export default function CycleTab() {
         }
       }
       setTasksLoading(true);
-      setTasksError(false);
       try {
         const line = dayStatus(dayOfCycle, cLen, pLen).line;
         const phaseLabel = PHASE_STYLE[phaseForDay(dayOfCycle, cLen, pLen)].label;
@@ -82,7 +87,8 @@ export default function CycleTab() {
         setTasks(fresh);
         await saveCachedTasks({ date: todayISO(), dayOfCycle, tasks: fresh });
       } catch {
-        setTasksError(true);
+        // Silent fallback — never show an error in the UI.
+        setTasks((prev) => (prev.length ? prev : DEFAULT_TASKS));
       } finally {
         setTasksLoading(false);
       }
@@ -243,10 +249,6 @@ export default function CycleTab() {
               <ActivityIndicator color={colors.inkMuted} />
               <Text style={styles.todoLoadingText}>Tuning to your day…</Text>
             </View>
-          ) : tasksError && tasks.length === 0 ? (
-            <Pressable onPress={refreshTasks} style={styles.todoRetry}>
-              <Text style={styles.todoRetryText}>Couldn't reach Ovara — tap to retry</Text>
-            </Pressable>
           ) : (
             tasks.map((t, i) => (
               <Pressable key={i} onPress={() => toggleTask(i)} style={styles.todoRow}>
@@ -335,12 +337,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito_400Regular',
     fontSize: 13,
     color: colors.inkMuted,
-  },
-  todoRetry: { paddingVertical: 8 },
-  todoRetryText: {
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 13,
-    color: colors.inkDim,
   },
   todoRow: {
     flexDirection: 'row',
