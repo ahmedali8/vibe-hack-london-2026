@@ -1,11 +1,15 @@
-// GLM (Zhipu BigModel) client for generating gentle, cycle-aware daily to-dos.
+// GLM client for generating gentle, cycle-aware daily to-dos.
 //
-// The API key is read from an environment variable (EXPO_PUBLIC_GLM_API_KEY),
-// configured in a local, gitignored .env file. See .env.example.
-const GLM_API_KEY = process.env.EXPO_PUBLIC_GLM_API_KEY?.trim();
-const GLM_URL =
-  process.env.EXPO_PUBLIC_GLM_URL ?? 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-const GLM_MODEL = process.env.EXPO_PUBLIC_GLM_MODEL ?? 'glm-4-plus';
+// Uses the same Z.AI GLM key + Coding API as the plan generator (lib/llm.ts) so a
+// single hackathon key drives the whole app. Falls back to the legacy GLM vars.
+// Keys are read from a local, gitignored .env file. See .env.example.
+const GLM_API_KEY =
+  process.env.EXPO_PUBLIC_ZAI_API_KEY?.trim() ?? process.env.EXPO_PUBLIC_GLM_API_KEY?.trim();
+const GLM_BASE = (
+  process.env.EXPO_PUBLIC_ZAI_BASE_URL ?? 'https://api.z.ai/api/coding/paas/v4'
+).replace(/\/$/, '');
+const GLM_URL = `${GLM_BASE}/chat/completions`;
+const GLM_MODEL = process.env.EXPO_PUBLIC_ZAI_MODEL ?? 'GLM-4.7';
 
 export function hasGlmApiKey(): boolean {
   return Boolean(GLM_API_KEY);
@@ -62,7 +66,7 @@ function parseTasks(content: string): DailyTask[] {
 
 export async function getDailyTasks(ctx: TaskContext): Promise<DailyTask[]> {
   if (!GLM_API_KEY) {
-    throw new Error('Missing EXPO_PUBLIC_GLM_API_KEY');
+    throw new Error('Missing EXPO_PUBLIC_ZAI_API_KEY');
   }
   const res = await fetch(GLM_URL, {
     method: 'POST',

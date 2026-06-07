@@ -13,6 +13,9 @@ import {
   type DailyPlan,
   type OvaraProfile,
 } from './storage';
+import { selectFoods } from './selectFoods';
+import { scorePcos } from './pcosScore';
+import { PCOS_GUIDANCE } from './pcosGuidance';
 
 export type PlanLoadResult = {
   plan: DailyPlan;
@@ -41,7 +44,16 @@ export async function loadPlanWithLlm(forceRefresh = false): Promise<PlanLoadRes
   if (needsLlm) {
     try {
       const phase = computePhase(profile.cycleStartDate);
-      const llm = await generatePersonalizedPlan({ profile, phase, state });
+      const foods = selectFoods(profile.diet);
+      const healthScore = profile.healthScore ?? scorePcos(profile);
+      const llm = await generatePersonalizedPlan({
+        profile,
+        phase,
+        state,
+        foods,
+        guidance: PCOS_GUIDANCE,
+        healthScore,
+      });
       if (llm) {
         plan = applyLlmPlan({ ...plan, date: state.date }, llm);
         await savePlan(plan);
