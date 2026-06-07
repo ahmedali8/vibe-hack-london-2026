@@ -1,14 +1,14 @@
-// OpenAI client for generating gentle, cycle-aware daily to-dos.
+// GLM-5 (Z.AI) client for generating gentle, cycle-aware daily to-dos.
 //
-// The API key is read from an environment variable (EXPO_PUBLIC_OPENAI_API_KEY),
+// The API key is read from an environment variable (EXPO_PUBLIC_ZAI_API_KEY),
 // configured in a local, gitignored .env file. See .env.example.
-const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY?.trim();
-const OPENAI_BASE_URL =
-  process.env.EXPO_PUBLIC_OPENAI_BASE_URL ?? 'https://api.openai.com/v1';
-const OPENAI_MODEL = process.env.EXPO_PUBLIC_OPENAI_MODEL ?? 'gpt-4o-mini';
+const ZAI_API_KEY = process.env.EXPO_PUBLIC_ZAI_API_KEY?.trim();
+const ZAI_BASE_URL =
+  process.env.EXPO_PUBLIC_ZAI_BASE_URL ?? 'https://api.z.ai/api/coding/paas/v4';
+const ZAI_MODEL = process.env.EXPO_PUBLIC_ZAI_MODEL ?? 'GLM-5';
 
 export function hasGlmApiKey(): boolean {
-  return Boolean(OPENAI_API_KEY);
+  return Boolean(ZAI_API_KEY);
 }
 
 export type DailyTask = { emoji: string; task: string };
@@ -61,18 +61,18 @@ function parseTasks(content: string): DailyTask[] {
 }
 
 export async function getDailyTasks(ctx: TaskContext): Promise<DailyTask[]> {
-  if (!OPENAI_API_KEY) {
-    throw new Error('Missing EXPO_PUBLIC_OPENAI_API_KEY');
+  if (!ZAI_API_KEY) {
+    throw new Error('Missing EXPO_PUBLIC_ZAI_API_KEY');
   }
-  const base = OPENAI_BASE_URL.replace(/\/$/, '');
+  const base = ZAI_BASE_URL.replace(/\/$/, '');
   const res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${ZAI_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
+      model: ZAI_MODEL,
       temperature: 0.7,
       max_tokens: 300,
       messages: [
@@ -84,10 +84,10 @@ export async function getDailyTasks(ctx: TaskContext): Promise<DailyTask[]> {
 
   if (!res.ok) {
     const detail = await res.text();
-    throw new Error(`OpenAI request failed (${res.status}): ${detail.slice(0, 200)}`);
+    throw new Error(`Z.AI request failed (${res.status}): ${detail.slice(0, 200)}`);
   }
   const data = await res.json();
   const content: string | undefined = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('OpenAI returned no content');
+  if (!content) throw new Error('Z.AI returned no content');
   return parseTasks(content);
 }
