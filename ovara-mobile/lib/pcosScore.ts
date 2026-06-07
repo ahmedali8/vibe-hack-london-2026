@@ -40,14 +40,18 @@ function whScore(w: number) {
 }
 const rbsScore = (r: number) => (r < 140 ? 100 : r < 200 ? 50 : 0);
 function bpScore(s: number, d: number) {
-  if (s < 120 && d < 80) return 100;
-  if (s < 130 && d < 80) return 80;
-  if (s < 140 || d < 90) return 55;
-  if (s < 160 || d < 100) return 30;
-  return 0;
+  // worst of systolic/diastolic drives the band (ACC/AHA), checked worst-first
+  if (s >= 160 || d >= 100) return 0;
+  if (s >= 140 || d >= 90) return 30;
+  if (s >= 130 || d >= 80) return 55;
+  if (s >= 120) return 80; // 120-129 with d<80 = elevated
+  return 100; // <120 and <80 = normal
 }
 function cycleLenScore(days: number) {
-  // full cycle length; healthy 21-35
+  // Onboarding collects FULL cycle length; healthy 21-35 days (a Rotterdam
+  // oligomenorrhea signal). This intentionally differs from the cohort's
+  // flow-length field — full-cycle length is the stronger cycle-health signal,
+  // and the 0.8-weight regularity term dominates this dimension anyway.
   if (days >= 21 && days <= 35) return 100;
   if (days < 21) return lin(days, 14, 21, 0, 100);
   return lin(days, 35, 60, 100, 0);

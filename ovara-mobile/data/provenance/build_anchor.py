@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
 """Clean + score the 541-subject PCOS cohort -> data/combined/pcos_scored.csv
 Implements scoring_rubric.md exactly. 100 = healthiest."""
-import openpyxl, numpy as np, pandas as pd, json, statistics
+import os, openpyxl, numpy as np, pandas as pd, json, statistics
 from pathlib import Path
 
-ROOT = Path("/Users/ahmedali/scorpio/vibe-hack")
+# Raw upstream datasets are NOT shipped in this repo. Point OVARA_RAW_DATA at the
+# folder containing data/archive/... (the committed data/*.csv are the outputs).
+ROOT = Path(os.environ.get("OVARA_RAW_DATA", "/Users/ahmedali/scorpio/vibe-hack"))
 XLSX = ROOT / "data/archive/PCOS_data_without_infertility.xlsx"
 OUT  = ROOT / "data/combined/pcos_scored.csv"
+
+if not XLSX.exists():
+    raise SystemExit(
+        f"Raw PCOS dataset not found at {XLSX}.\n"
+        "This provenance script regenerates the source CSV from raw upstream data "
+        "not shipped here. Set OVARA_RAW_DATA to the folder containing "
+        "data/archive/PCOS_data_without_infertility.xlsx. See README 'Development'."
+    )
 
 # ---------- load (data_only resolves =DIVIDE formula cells) ----------
 wb = openpyxl.load_workbook(XLSX, data_only=True)

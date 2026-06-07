@@ -1,16 +1,27 @@
 #!/usr/bin/env python3
 """Score USDA whole foods for PCOS diet quality -> data/combined/food_scored.csv
 Implements scoring_rubric.md section 2. Amounts are per 100 g. 100 = best."""
-import pandas as pd, numpy as np, json
+import os, pandas as pd, numpy as np, json
 from pathlib import Path
 
-ROOT = Path("/Users/ahmedali/scorpio/vibe-hack")
+# Raw upstream datasets are NOT shipped in this repo. Point OVARA_RAW_DATA at the
+# folder containing the FoodData_Central_* releases (committed data/*.csv are the outputs).
+ROOT = Path(os.environ.get("OVARA_RAW_DATA", "/Users/ahmedali/scorpio/vibe-hack"))
 RELEASES = {
  "foundation": ROOT/"data/FoodData_Central_foundation_food_csv_2026-04-30",
  "sr_legacy":  ROOT/"data/FoodData_Central_sr_legacy_food_csv_2018-04",
  "survey":     ROOT/"data/FoodData_Central_survey_food_csv_2024-10-31",
 }
 OUT = ROOT/"data/combined/food_scored.csv"
+
+_first = next(iter(RELEASES.values()))
+if not _first.exists():
+    raise SystemExit(
+        f"Raw USDA FoodData Central not found at {_first}.\n"
+        "This provenance script needs the raw upstream datasets not shipped here. "
+        "Set OVARA_RAW_DATA to the folder containing the FoodData_Central_* releases. "
+        "See README 'Development'."
+    )
 
 # Resolve nutrients BY NAME per release (Foundation/SR use ids 1008..., Survey/FNDDS
 # uses legacy nutrient_nbr 208...). target column -> accepted nutrient names.
