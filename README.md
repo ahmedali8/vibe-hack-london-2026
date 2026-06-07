@@ -137,28 +137,31 @@ In other words: clinical knowledge alone, with no training on the outcome, ranks
 
 ## How we use GLM
 
-GLM is the layer that turns cold context into something warm and specific. We use it in **two distinct, grounded calls**, plus an offline companion.
+GLM is the layer that turns cold context into something warm and specific. We use it in **two distinct, grounded calls**, plus an offline companion. Every model call goes through a shared AI layer (`lib/aiChat.ts`) with **GLM as the primary provider and Claude as an automatic fallback** — if a GLM call errors, hits quota, or returns nothing, the same request is retried against Claude transparently.
 
 **1 — Personalized diet & workout plan** (`lib/llm.ts`, model **GLM-5.1** via the Z.AI Coding API)
 The prompt carries the user's profile, PCOS health score and *weakest* sub-scores, cycle phase, evidence facts distilled from the 541-patient cohort, and a role-balanced shortlist of PCOS-scored foods filtered to their diet. GLM returns strict JSON — four meals, a workout, and three tips — which we normalize, validate, and render. Crucially, **every meal must be built from the real foods we supplied**, which keeps the model from hallucinating unhealthy or off-diet suggestions.
 
-**2 — Gentle daily to-dos** (`lib/glm.ts`, model **GLM-5.1** via the same Z.AI key)
-A lighter call that returns exactly three small, kind, phase-aware tasks (each ≤ 8 words) as compact JSON, tuned to the cycle day and any symptoms. It shares the single `EXPO_PUBLIC_ZAI_API_KEY` with the plan generator.
+**2 — Gentle daily to-dos** (`lib/glm.ts`, **GLM-5.1** via the shared AI layer)
+A lighter call that returns exactly three small, kind, phase-aware tasks (each ≤ 8 words) as compact JSON, tuned to the cycle day and any symptoms. It runs through the same shared AI layer (GLM primary, Claude fallback) as the plan generator.
 
 **3 — Companion chat** (`lib/ai.ts`)
 An empathetic, rule-based responder that works fully offline — the safety net so the app stays supportive even with no connectivity or key.
 
 ### Configuration
 
-**One Z.AI hackathon key drives the whole app** — both the plan generator and the daily to-dos read it. Copy `ovara-mobile/.env.example` to `.env` and fill it in (the file is gitignored).
+**One GLM key drives the whole app** (plans + daily to-dos); add a Claude key for automatic failover. Copy `ovara-mobile/.env.example` to `.env` and fill it in (the file is gitignored). Either provider alone works; set both for resilience.
 
 | Variable | Used by | Default |
 | --- | --- | --- |
-| `EXPO_PUBLIC_ZAI_API_KEY` | Plans **and** daily to-dos | — (**required** for AI features) |
-| `EXPO_PUBLIC_ZAI_BASE_URL` | Plans + daily to-dos | `https://api.z.ai/api/coding/paas/v4` |
-| `EXPO_PUBLIC_ZAI_MODEL` | Plans + daily to-dos | `GLM-5.1` |
+| `EXPO_PUBLIC_GLM_API_KEY` | Primary — plans + daily to-dos | — (**required** unless using Claude) |
+| `EXPO_PUBLIC_GLM_BASE_URL` | GLM | `https://api.z.ai/api/coding/paas/v4` |
+| `EXPO_PUBLIC_GLM_MODEL` | GLM | `GLM-5.1` |
+| `EXPO_PUBLIC_CLAUDE_API_KEY` | Fallback — used if GLM fails | — (optional) |
+| `EXPO_PUBLIC_CLAUDE_BASE_URL` | Claude | `https://api.anthropic.com` |
+| `EXPO_PUBLIC_CLAUDE_MODEL` | Claude | `claude-opus-4-8` (use `claude-haiku-4-5` for cheaper/faster) |
 
-> Documented coding models (UPPERCASE): `GLM-5.1`, `GLM-5V-Turbo`, `GLM-4.7`, `GLM-4.5-AIR`. `GLM-5.1` is premium — peak hours (14:00–18:00 UTC+8) draw quota at a higher rate; switch to `GLM-4.7` if you hit limits. The legacy `EXPO_PUBLIC_GLM_*` vars (Zhipu BigModel) remain as an optional fallback only.
+> Documented GLM coding models (UPPERCASE): `GLM-5.1`, `GLM-5V-Turbo`, `GLM-4.7`, `GLM-4.5-AIR`. `GLM-5.1` is premium — peak hours (14:00–18:00 UTC+8) draw quota at a higher rate; switch to `GLM-4.7` if you hit limits, or rely on the Claude fallback.
 
 ---
 
@@ -170,7 +173,7 @@ An empathetic, rule-based responder that works fully offline — the safety net 
 | **Motion & gestures** | `react-native-reanimated` 4 + `react-native-gesture-handler` — the rotatable cycle wheel, swipeable cards, scrollable calendar |
 | **Storage** | `expo-secure-store` — encrypted, on-device, no backend |
 | **Look & feel** | `expo-linear-gradient`, Google Fonts (Fraunces + Nunito), `@expo/vector-icons` |
-| **AI** | GLM-5.1 via Z.AI Coding API (one key drives plans + daily to-dos), OpenAI-compatible chat |
+| **AI** | GLM-5.1 via Z.AI Coding API (primary) with Claude (Anthropic Messages API) automatic fallback — shared layer `lib/aiChat.ts` |
 | **Data / ML** | Python + pandas — clinical and nutrition scoring rubrics, validation (AUC), distillation to TypeScript |
 | **Web prototype** | TanStack Start + Router, Vite, Tailwind, shadcn/Radix UI, Vercel AI SDK (built with Lovable) |
 
@@ -219,8 +222,9 @@ python3 scripts/build_food_bank.py        # distill CSVs -> lib/foodBank.ts, etc
 │   ├── app/                      # screens (Expo Router): tabs, onboarding, chat, logging
 │   ├── components/               # CycleWheel, CalendarBar, SwipeableCard, ...
 │   ├── lib/
-│   │   ├── llm.ts                # GLM diet + workout plan generator (grounded)
-│   │   ├── glm.ts                # GLM daily to-do generator
+│   │   ├── aiChat.ts             # shared AI transport — GLM primary, Claude fallback
+│   │   ├── llm.ts                # diet + workout plan generator (grounded)
+│   │   ├── glm.ts                # daily to-do generator
 │   │   ├── ai.ts                 # offline companion chat
 │   │   ├── pcosScore.ts          # on-device PCOS health score (rubric port)
 │   │   ├── selectFoods.ts        # picks the food shortlist GLM is allowed to use
@@ -242,7 +246,7 @@ Day-to-day commands for working on the mobile app (the user-facing quickstart is
 ```bash
 cd ovara-mobile
 npm install                      # install dependencies
-cp .env.example .env             # then add your EXPO_PUBLIC_ZAI_API_KEY
+cp .env.example .env             # then add your EXPO_PUBLIC_GLM_API_KEY
 
 npx expo start                   # run on Expo Go / a simulator
 npx tsc --noEmit                 # type-check the whole app
@@ -256,6 +260,8 @@ python3 data/provenance/build_anchor.py   # -> data/pcos_scored.csv + validation
 python3 data/provenance/build_food.py     # -> data/food_scored.csv + validation
 python3 scripts/build_food_bank.py        # -> lib/foodBank.ts
 python3 scripts/build_pcos_guidance.py    # -> lib/pcosGuidance.ts
+python3 scripts/build_phase_insights.py   # -> lib/phaseInsights.ts
+python3 scripts/build_cycle_day_data.py   # -> lib/cycleDayData.ts
 ```
 
 - Requires **Node 18+**; the data scripts need **Python 3** with `pandas` (and `openpyxl` for the anchor).
