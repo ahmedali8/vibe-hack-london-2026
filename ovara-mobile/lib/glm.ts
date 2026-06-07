@@ -9,7 +9,7 @@ const GLM_BASE = (
   process.env.EXPO_PUBLIC_ZAI_BASE_URL ?? 'https://api.z.ai/api/coding/paas/v4'
 ).replace(/\/$/, '');
 const GLM_URL = `${GLM_BASE}/chat/completions`;
-const GLM_MODEL = process.env.EXPO_PUBLIC_ZAI_MODEL ?? 'GLM-4.7';
+const GLM_MODEL = process.env.EXPO_PUBLIC_ZAI_MODEL ?? 'GLM-5.1';
 
 export function hasGlmApiKey(): boolean {
   return Boolean(GLM_API_KEY);

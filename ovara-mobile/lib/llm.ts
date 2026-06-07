@@ -5,7 +5,7 @@ import type { BankFood } from './foodBank';
 
 const ZAI_BASE_URL =
   process.env.EXPO_PUBLIC_ZAI_BASE_URL ?? 'https://api.z.ai/api/coding/paas/v4';
-const ZAI_MODEL = process.env.EXPO_PUBLIC_ZAI_MODEL ?? 'GLM-4.7';
+const ZAI_MODEL = process.env.EXPO_PUBLIC_ZAI_MODEL ?? 'GLM-5.1';
 
 export type WorkoutTip = { emoji: string; title: string; body: string };
 
