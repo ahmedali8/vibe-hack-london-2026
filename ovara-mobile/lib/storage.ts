@@ -2,6 +2,43 @@ import * as SecureStore from 'expo-secure-store';
 
 export type CyclePhase = 'menstrual' | 'follicular' | 'ovulatory' | 'luteal';
 
+// Optional clinical inputs collected during onboarding. All optional — the PCOS
+// scorer (lib/pcosScore.ts) is tolerant of missing fields.
+export type ClinicalInputs = {
+  age?: number;
+  heightCm?: number;
+  weightKg?: number;
+  waistCm?: number;
+  hipCm?: number;
+  cycleLengthDays?: number;
+  // hyperandrogenism / metabolic signs
+  hairGrowth?: boolean; // hirsutism
+  skinDarkening?: boolean; // acanthosis nigricans
+  hairLoss?: boolean;
+  acne?: boolean;
+  weightGain?: boolean;
+  fastFood?: boolean;
+  // optional vitals (if known)
+  bpSystolic?: number;
+  bpDiastolic?: number;
+  randomGlucose?: number; // mg/dL
+  follicleCount?: number; // per ovary, from ultrasound
+  // optional recent bloodwork
+  amh?: number;
+  lh?: number;
+  fsh?: number;
+  tsh?: number;
+  prl?: number;
+  vitD?: number;
+};
+
+export type HealthScore = {
+  total: number; // 0-100, 100 = healthiest
+  level: string;
+  subscores: Record<string, number>;
+  completeness: number; // 0-1 fraction of dimensions with data
+};
+
 export type OvaraProfile = {
   name: string;
   cycleStatus: string;
@@ -11,6 +48,8 @@ export type OvaraProfile = {
   fitness: string;
   cycleStartDate: string;
   completedAt: string;
+  clinical?: ClinicalInputs;
+  healthScore?: HealthScore;
 };
 
 export type Meal = { id: string; label: string; title: string; note: string; emoji: string };
