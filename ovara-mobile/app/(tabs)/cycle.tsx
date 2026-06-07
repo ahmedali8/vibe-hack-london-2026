@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Link, useFocusEffect } from 'expo-router';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
   useSharedValue,
@@ -20,6 +20,7 @@ import {
   phaseForDay,
   getCachedTasks,
   saveCachedTasks,
+  clearAll,
   todayISO,
   type OvaraProfile,
   type DailyTask,
@@ -42,6 +43,7 @@ const WHEEL_CENTER = 160;
 
 export default function CycleTab() {
   const { width } = useWindowDimensions();
+  const router = useRouter();
   const [profile, setProfile] = useState<OvaraProfile | null>(null);
   const [cycleLength, setCycleLength] = useState(28);
   const [periodLength, setPeriodLength] = useState(5);
@@ -177,6 +179,24 @@ export default function CycleTab() {
     if (profile) fetchTasks(profile, todayDay, cycleLength, periodLength, true);
   };
 
+  const resetApp = () => {
+    Alert.alert(
+      'Reset everything?',
+      'This erases your profile, plans, period logs and to-dos on this device. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            await clearAll();
+            router.replace('/');
+          },
+        },
+      ]
+    );
+  };
+
   const goToToday = () => {
     const x = todayGlobalIndex.current * DAY_W;
     runOnUI((tx: number) => {
@@ -195,6 +215,11 @@ export default function CycleTab() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <View style={styles.header}>
+        <Pressable onPress={resetApp} hitSlop={12} style={({ pressed }) => pressed && { opacity: 0.6 }}>
+          <Text style={styles.resetIcon}>⚙︎</Text>
+        </Pressable>
+      </View>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -275,6 +300,16 @@ export default function CycleTab() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 24,
+    paddingTop: 8,
+  },
+  resetIcon: {
+    fontSize: 20,
+    color: colors.inkMuted,
+  },
   content: {
     flexGrow: 1,
     alignItems: 'center',
