@@ -39,9 +39,9 @@ const config: ExpoConfig = {
   },
   extra: {
     router: { origin: false },
-    eas: { projectId: 'YOUR_EAS_PROJECT_ID' },
+    eas: { projectId: 'c6998acc-1ecc-4d06-ad3b-2762838787dd' },
   },
-  owner: 'zamaniziba18',
+  owner: 'coconutcoder',
 };
 
 export default config;
