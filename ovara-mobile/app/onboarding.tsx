@@ -13,17 +13,29 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Chip } from '../components/Chip';
-import { saveProfile, addPeriodStart, todayISO } from '../lib/storage';
+import { saveProfile, addPeriodStart, todayISO, type ClinicalInputs, type OvaraProfile } from '../lib/storage';
+import { scorePcos } from '../lib/pcosScore';
 import { colors } from '../lib/colors';
 
-type StepKey = 'welcome' | 'name' | 'cycle' | 'diagnosis' | 'symptoms' | 'diet' | 'fitness';
-const STEPS: StepKey[] = ['welcome', 'name', 'cycle', 'diagnosis', 'symptoms', 'diet', 'fitness'];
+type StepKey =
+  | 'welcome' | 'name' | 'cycle' | 'diagnosis' | 'symptoms' | 'diet' | 'fitness'
+  | 'body' | 'signs' | 'labs';
+const STEPS: StepKey[] = [
+  'welcome', 'name', 'cycle', 'diagnosis', 'symptoms', 'diet', 'fitness',
+  'body', 'signs', 'labs',
+];
 
 const SYMPTOM_OPTIONS = ['Cramps', 'Bloating', 'Fatigue', 'Mood swings', 'Acne', 'Cravings', 'Pelvic pain', 'Brain fog', 'Tender breasts', 'Anxious'];
 const DIAGNOSIS_OPTIONS = ['PCOS', 'Endometriosis', 'Both', 'Suspected', 'Just exploring'];
 const CYCLE_OPTIONS = ['Regular', 'Irregular', 'Not sure', 'Not menstruating'];
 const DIET_OPTIONS = ['Omnivore', 'Vegetarian', 'Vegan', 'Gluten-free', 'Dairy-free', 'No preference'];
 const FITNESS_OPTIONS = ['Gentle', 'Moderate', 'Active'];
+const SIGN_OPTIONS = ['Extra hair growth', 'Skin darkening', 'Hair thinning', 'Acne', 'Recent weight gain', 'Frequent fast food'];
+
+const num = (s: string): number | undefined => {
+  const v = parseFloat(s);
+  return Number.isFinite(v) ? v : undefined;
+};
 
 export default function Onboarding() {
   const router = useRouter();
@@ -35,6 +47,18 @@ export default function Onboarding() {
   const [symptoms, setSymptoms] = useState<string[]>([]);
   const [diet, setDiet] = useState('');
   const [fitness, setFitness] = useState('');
+  // clinical
+  const [heightCm, setHeightCm] = useState('');
+  const [weightKg, setWeightKg] = useState('');
+  const [waistCm, setWaistCm] = useState('');
+  const [hipCm, setHipCm] = useState('');
+  const [cycleLen, setCycleLen] = useState('');
+  const [signs, setSigns] = useState<string[]>([]);
+  const [amh, setAmh] = useState('');
+  const [lh, setLh] = useState('');
+  const [fsh, setFsh] = useState('');
+  const [tsh, setTsh] = useState('');
+  const [vitD, setVitD] = useState('');
   const opacity = useState(new Animated.Value(1))[0];
 
   const step = STEPS[stepIdx];
@@ -51,6 +75,9 @@ export default function Onboarding() {
       case 'symptoms': return true;
       case 'diet': return diet !== '';
       case 'fitness': return fitness !== '';
+      case 'body': return true;   // optional, encouraged
+      case 'signs': return true;  // optional
+      case 'labs': return true;   // optional
     }
   })();
 
@@ -63,7 +90,26 @@ export default function Onboarding() {
 
   const next = async () => {
     if (stepIdx === STEPS.length - 1) {
-      await saveProfile({
+      const clinical: ClinicalInputs = {
+        heightCm: num(heightCm),
+        weightKg: num(weightKg),
+        waistCm: num(waistCm),
+        hipCm: num(hipCm),
+        cycleLengthDays: num(cycleLen),
+        amh: num(amh),
+        lh: num(lh),
+        fsh: num(fsh),
+        tsh: num(tsh),
+        vitD: num(vitD),
+        // signs step was shown — unselected = absent
+        hairGrowth: signs.includes('Extra hair growth'),
+        skinDarkening: signs.includes('Skin darkening'),
+        hairLoss: signs.includes('Hair thinning'),
+        acne: signs.includes('Acne'),
+        weightGain: signs.includes('Recent weight gain'),
+        fastFood: signs.includes('Frequent fast food'),
+      };
+      const profile: OvaraProfile = {
         name: name.trim() || 'lovely',
         cycleStatus,
         diagnosis,
@@ -72,7 +118,9 @@ export default function Onboarding() {
         fitness,
         cycleStartDate: todayISO(),
         completedAt: new Date().toISOString(),
-      });
+        clinical,
+      };
+      await saveProfile({ ...profile, healthScore: scorePcos(profile) });
       await addPeriodStart(todayISO());
       router.replace('/');
     } else {
@@ -197,6 +245,42 @@ export default function Onboarding() {
               </View>
             </ScrollView>
           )}
+
+          {step === 'body' && (
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={styles.stepTitle}>A few body basics</Text>
+              <Text style={styles.stepSubtitle}>Helps us gauge your metabolic health. All optional.</Text>
+              <Field label="Height (cm)" value={heightCm} onChange={setHeightCm} placeholder="165" />
+              <Field label="Weight (kg)" value={weightKg} onChange={setWeightKg} placeholder="62" />
+              <Field label="Waist (cm)" value={waistCm} onChange={setWaistCm} placeholder="76" />
+              <Field label="Hip (cm)" value={hipCm} onChange={setHipCm} placeholder="98" />
+            </ScrollView>
+          )}
+
+          {step === 'signs' && (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.stepTitle}>Noticing any of these?</Text>
+              <Text style={styles.stepSubtitle}>Common PCOS signs. Tap any, or none.</Text>
+              <View style={styles.chipWrap}>
+                {SIGN_OPTIONS.map((o) => (
+                  <Chip key={o} tone="rose" selected={signs.includes(o)} onPress={() => toggle(signs, setSigns, o)}>{o}</Chip>
+                ))}
+              </View>
+            </ScrollView>
+          )}
+
+          {step === 'labs' && (
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={styles.stepTitle}>Recent bloodwork?</Text>
+              <Text style={styles.stepSubtitle}>Only if you have it handy — every box is optional.</Text>
+              <Field label="Typical cycle length (days)" value={cycleLen} onChange={setCycleLen} placeholder="28" />
+              <Field label="AMH (ng/mL)" value={amh} onChange={setAmh} placeholder="3.5" />
+              <Field label="LH (mIU/mL)" value={lh} onChange={setLh} placeholder="7" />
+              <Field label="FSH (mIU/mL)" value={fsh} onChange={setFsh} placeholder="6" />
+              <Field label="TSH (mIU/L)" value={tsh} onChange={setTsh} placeholder="2.1" />
+              <Field label="Vitamin D (ng/mL)" value={vitD} onChange={setVitD} placeholder="30" />
+            </ScrollView>
+          )}
         </Animated.View>
 
         <Pressable
@@ -214,6 +298,26 @@ export default function Onboarding() {
         </Pressable>
       </View>
     </SafeAreaView>
+  );
+}
+
+function Field({
+  label, value, onChange, placeholder,
+}: {
+  label: string; value: string; onChange: (s: string) => void; placeholder: string;
+}) {
+  return (
+    <View style={styles.fieldRow}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={colors.inkMuted}
+        keyboardType="decimal-pad"
+        style={styles.fieldInput}
+      />
+    </View>
   );
 }
 
@@ -243,6 +347,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.border,
     borderRadius: 24, paddingHorizontal: 24, paddingVertical: 18,
     fontSize: 17, fontFamily: 'Nunito_400Regular', color: colors.ink,
+  },
+  fieldRow: { marginBottom: 16 },
+  fieldLabel: { fontFamily: 'Nunito_600SemiBold', fontSize: 14, color: colors.inkDim, marginBottom: 8, marginLeft: 4 },
+  fieldInput: {
+    backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.border,
+    borderRadius: 18, paddingHorizontal: 20, paddingVertical: 14,
+    fontSize: 16, fontFamily: 'Nunito_400Regular', color: colors.ink,
   },
   continueBtn: {
     backgroundColor: colors.ink, borderRadius: 24, paddingVertical: 20,
