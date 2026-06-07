@@ -2,10 +2,7 @@ import { toCardTitle, toSentenceCase } from './format';
 import type { DailyPlan, DailyState, HealthScore, Meal, OvaraProfile, Workout } from './storage';
 import { foodsForPrompt } from './selectFoods';
 import type { BankFood } from './foodBank';
-
-const ZAI_BASE_URL =
-  process.env.EXPO_PUBLIC_ZAI_BASE_URL ?? 'https://api.z.ai/api/coding/paas/v4';
-const ZAI_MODEL = process.env.EXPO_PUBLIC_ZAI_MODEL ?? 'GLM-5.1';
+import { chat, hasAiKey } from './aiChat';
 
 export type WorkoutTip = { emoji: string; title: string; body: string };
 
@@ -18,40 +15,7 @@ export type LlmPlanPayload = {
 };
 
 export function hasLlmApiKey(): boolean {
-  return Boolean(process.env.EXPO_PUBLIC_ZAI_API_KEY?.trim());
-}
-
-async function zaiChat(system: string, user: string): Promise<string | null> {
-  const apiKey = process.env.EXPO_PUBLIC_ZAI_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  const base = ZAI_BASE_URL.replace(/\/$/, '');
-  const response = await fetch(`${base}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: ZAI_MODEL,
-      temperature: 0.5,
-      max_tokens: 1200,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Z.AI error ${response.status}: ${detail.slice(0, 200)}`);
-  }
-
-  const data = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  return data.choices?.[0]?.message?.content?.trim() ?? null;
+  return hasAiKey();
 }
 
 function extractJson(text: string): string {
@@ -215,7 +179,7 @@ Return JSON exactly in this shape:
   ]
 }`;
 
-  const raw = await zaiChat(SYSTEM_PROMPT, userPrompt);
+  const raw = await chat(SYSTEM_PROMPT, userPrompt, { maxTokens: 1200, temperature: 0.5 });
   if (!raw) return null;
   return parseLlmPlanResponse(raw);
 }

@@ -18,10 +18,10 @@ try {
   process.exit(1);
 }
 
-const KEY = process.env.EXPO_PUBLIC_ZAI_API_KEY?.trim();
-const BASE = (process.env.EXPO_PUBLIC_ZAI_BASE_URL ?? 'https://api.z.ai/api/coding/paas/v4').replace(/\/$/, '');
-const MODEL = process.env.EXPO_PUBLIC_ZAI_MODEL ?? 'GLM-5.1';
-if (!KEY) { console.error('EXPO_PUBLIC_ZAI_API_KEY missing in .env'); process.exit(1); }
+const KEY = process.env.EXPO_PUBLIC_GLM_API_KEY?.trim();
+const BASE = (process.env.EXPO_PUBLIC_GLM_BASE_URL ?? 'https://api.z.ai/api/coding/paas/v4').replace(/\/$/, '');
+const MODEL = process.env.EXPO_PUBLIC_GLM_MODEL ?? 'GLM-5.1';
+if (!KEY) { console.error('EXPO_PUBLIC_GLM_API_KEY missing in .env'); process.exit(1); }
 console.log(`→ ${BASE}/chat/completions  model=${MODEL}`);
 
 const system =

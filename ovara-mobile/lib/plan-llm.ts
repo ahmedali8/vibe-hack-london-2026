@@ -36,7 +36,7 @@ export async function loadPlanWithLlm(forceRefresh = false): Promise<PlanLoadRes
   let fromLlm = plan.source === 'llm';
 
   if (!llmReady) {
-    llmError = 'Add EXPO_PUBLIC_ZAI_API_KEY in .env for personalized plans.';
+    llmError = 'Add EXPO_PUBLIC_GLM_API_KEY (or EXPO_PUBLIC_CLAUDE_API_KEY) in .env for personalized plans.';
   }
 
   const needsLlm = llmReady && (forceRefresh || plan.source !== 'llm');
