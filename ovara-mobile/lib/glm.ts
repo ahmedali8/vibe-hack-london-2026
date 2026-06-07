@@ -1,5 +1,5 @@
 // Generates gentle, cycle-aware daily to-dos through the shared AI layer
-// (lib/aiChat.ts): GLM primary, Claude fallback. One key set drives the whole app.
+// (lib/aiChat.ts): Claude primary, GLM fallback. One key set drives the whole app.
 import { chat, hasAiKey } from './aiChat';
 
 export function hasGlmApiKey(): boolean {
@@ -59,6 +59,7 @@ export async function getDailyTasks(ctx: TaskContext): Promise<DailyTask[]> {
   const content = await chat(SYSTEM_PROMPT, buildUserPrompt(ctx), {
     maxTokens: 300,
     temperature: 0.7,
+    primary: 'claude', // Claude-first; GLM is the fallback
   });
   if (!content) throw new Error('AI returned no content for daily tasks');
   return parseTasks(content);
