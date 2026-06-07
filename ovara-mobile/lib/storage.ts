@@ -1,4 +1,44 @@
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+
+// Platform-aware persistence:
+// - Native (iOS/Android): expo-secure-store keeps data in the device's secure keystore.
+// - Web / environments without the SecureStore native module: fall back to localStorage
+//   (and an in-memory map as a last resort) so the app never crashes.
+const memoryStore = new Map<string, string>();
+
+const secureStoreAvailable =
+  Platform.OS !== 'web' && typeof SecureStore.setItemAsync === 'function';
+
+async function storageGet(key: string): Promise<string | null> {
+  if (secureStoreAvailable) return SecureStore.getItemAsync(key);
+  if (typeof localStorage !== 'undefined') return localStorage.getItem(key);
+  return memoryStore.has(key) ? (memoryStore.get(key) as string) : null;
+}
+
+async function storageSet(key: string, value: string): Promise<void> {
+  if (secureStoreAvailable) {
+    await SecureStore.setItemAsync(key, value);
+    return;
+  }
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(key, value);
+    return;
+  }
+  memoryStore.set(key, value);
+}
+
+async function storageDelete(key: string): Promise<void> {
+  if (secureStoreAvailable) {
+    await SecureStore.deleteItemAsync(key);
+    return;
+  }
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(key);
+    return;
+  }
+  memoryStore.delete(key);
+}
 
 export type CyclePhase = 'menstrual' | 'follicular' | 'ovulatory' | 'luteal';
 
@@ -132,7 +172,7 @@ function clamp(n: number, min: number, max: number): number {
 
 async function read<T>(key: string): Promise<T | null> {
   try {
-    const raw = await SecureStore.getItemAsync(key);
+    const raw = await storageGet(key);
     return raw ? (JSON.parse(raw) as T) : null;
   } catch {
     return null;
@@ -140,7 +180,7 @@ async function read<T>(key: string): Promise<T | null> {
 }
 
 async function write<T>(key: string, value: T): Promise<void> {
-  await SecureStore.setItemAsync(key, JSON.stringify(value));
+  await storageSet(key, JSON.stringify(value));
 }
 
 export async function getProfile(): Promise<OvaraProfile | null> {
@@ -172,7 +212,7 @@ export async function saveState(s: DailyState): Promise<void> {
 }
 
 export async function clearAll(): Promise<void> {
-  await Promise.all(Object.values(KEYS).map((k) => SecureStore.deleteItemAsync(k)));
+  await Promise.all(Object.values(KEYS).map((k) => storageDelete(k)));
 }
 
 export async function getCachedTasks(): Promise<DailyTasks | null> {
