@@ -179,7 +179,11 @@ Return JSON exactly in this shape:
   ]
 }`;
 
-  const raw = await chat(SYSTEM_PROMPT, userPrompt, { maxTokens: 1200, temperature: 0.5 });
+  const raw = await chat(SYSTEM_PROMPT, userPrompt, {
+    maxTokens: 1200,
+    temperature: 0.5,
+    primary: 'claude', // diet/workout plans prefer Claude; GLM is the fallback
+  });
   if (!raw) return null;
   return parseLlmPlanResponse(raw);
 }

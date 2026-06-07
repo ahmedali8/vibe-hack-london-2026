@@ -18,7 +18,11 @@ const CLAUDE_BASE = (
 ).replace(/\/$/, '');
 const CLAUDE_MODEL = process.env.EXPO_PUBLIC_CLAUDE_MODEL ?? 'claude-opus-4-8';
 
-export type ChatOpts = { maxTokens?: number; temperature?: number };
+export type ChatOpts = {
+  maxTokens?: number;
+  temperature?: number;
+  primary?: 'glm' | 'claude'; // which provider to try first (default 'glm')
+};
 
 export function hasAiKey(): boolean {
   return Boolean(GLM_KEY || CLAUDE_KEY);
@@ -74,22 +78,20 @@ async function claudeChat(system: string, user: string, opts: ChatOpts): Promise
   return text || null;
 }
 
-// Try GLM first; on error or empty response, fall back to Claude.
+// Try the primary provider first; on error or empty response, fall back to the
+// other. opts.primary picks which goes first (default 'glm'). A provider with no
+// key returns null and is skipped automatically.
 export async function chat(system: string, user: string, opts: ChatOpts = {}): Promise<string | null> {
-  if (GLM_KEY) {
+  const providers =
+    opts.primary === 'claude'
+      ? ([['Claude', claudeChat], ['GLM', glmChat]] as const)
+      : ([['GLM', glmChat], ['Claude', claudeChat]] as const);
+  for (const [name, fn] of providers) {
     try {
-      const r = await glmChat(system, user, opts);
+      const r = await fn(system, user, opts);
       if (r) return r;
     } catch (e) {
-      console.warn('GLM failed, falling back to Claude:', e instanceof Error ? e.message : e);
-    }
-  }
-  if (CLAUDE_KEY) {
-    try {
-      const r = await claudeChat(system, user, opts);
-      if (r) return r;
-    } catch (e) {
-      console.warn('Claude fallback failed:', e instanceof Error ? e.message : e);
+      console.warn(`${name} failed, trying next provider:`, e instanceof Error ? e.message : e);
     }
   }
   return null;
