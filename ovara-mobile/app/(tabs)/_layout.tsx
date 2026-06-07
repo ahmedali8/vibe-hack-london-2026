@@ -18,6 +18,13 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
+        name="cycle"
+        options={{
+          title: 'Cycle',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🌸" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="diet"
         options={{
           title: 'Diet',
@@ -29,13 +36,6 @@ export default function TabLayout() {
         options={{
           title: 'Workout',
           tabBarIcon: ({ focused }) => <TabIcon emoji="🧘🏻‍♀️" focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
-        name="cycle"
-        options={{
-          title: 'Cycle',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🌸" focused={focused} />,
         }}
       />
     </Tabs>
