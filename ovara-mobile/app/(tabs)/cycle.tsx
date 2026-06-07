@@ -81,7 +81,8 @@ export default function CycleTab() {
         });
         setTasks(fresh);
         await saveCachedTasks({ date: todayISO(), dayOfCycle, tasks: fresh });
-      } catch {
+      } catch (err) {
+        console.warn('[to-dos] getDailyTasks failed:', err);
         setTasksError(true);
       } finally {
         setTasksLoading(false);

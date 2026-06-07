@@ -1,14 +1,14 @@
-// GLM (Zhipu BigModel) client for generating gentle, cycle-aware daily to-dos.
+// OpenAI client for generating gentle, cycle-aware daily to-dos.
 //
-// The API key is read from an environment variable (EXPO_PUBLIC_GLM_API_KEY),
+// The API key is read from an environment variable (EXPO_PUBLIC_OPENAI_API_KEY),
 // configured in a local, gitignored .env file. See .env.example.
-const GLM_API_KEY = process.env.EXPO_PUBLIC_GLM_API_KEY?.trim();
-const GLM_URL =
-  process.env.EXPO_PUBLIC_GLM_URL ?? 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-const GLM_MODEL = process.env.EXPO_PUBLIC_GLM_MODEL ?? 'glm-4-plus';
+const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY?.trim();
+const OPENAI_BASE_URL =
+  process.env.EXPO_PUBLIC_OPENAI_BASE_URL ?? 'https://api.openai.com/v1';
+const OPENAI_MODEL = process.env.EXPO_PUBLIC_OPENAI_MODEL ?? 'gpt-4o-mini';
 
 export function hasGlmApiKey(): boolean {
-  return Boolean(GLM_API_KEY);
+  return Boolean(OPENAI_API_KEY);
 }
 
 export type DailyTask = { emoji: string; task: string };
@@ -53,7 +53,7 @@ function parseTasks(content: string): DailyTask[] {
   const end = cleaned.lastIndexOf(']');
   const json = start >= 0 && end > start ? cleaned.slice(start, end + 1) : cleaned;
   const parsed = JSON.parse(json);
-  if (!Array.isArray(parsed)) throw new Error('GLM did not return an array');
+  if (!Array.isArray(parsed)) throw new Error('Model did not return an array');
   return parsed
     .filter((t) => t && typeof t.task === 'string')
     .slice(0, 3)
@@ -61,17 +61,18 @@ function parseTasks(content: string): DailyTask[] {
 }
 
 export async function getDailyTasks(ctx: TaskContext): Promise<DailyTask[]> {
-  if (!GLM_API_KEY) {
-    throw new Error('Missing EXPO_PUBLIC_GLM_API_KEY');
+  if (!OPENAI_API_KEY) {
+    throw new Error('Missing EXPO_PUBLIC_OPENAI_API_KEY');
   }
-  const res = await fetch(GLM_URL, {
+  const base = OPENAI_BASE_URL.replace(/\/$/, '');
+  const res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${GLM_API_KEY}`,
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: GLM_MODEL,
+      model: OPENAI_MODEL,
       temperature: 0.7,
       max_tokens: 300,
       messages: [
@@ -82,10 +83,11 @@ export async function getDailyTasks(ctx: TaskContext): Promise<DailyTask[]> {
   });
 
   if (!res.ok) {
-    throw new Error(`GLM request failed (${res.status})`);
+    const detail = await res.text();
+    throw new Error(`OpenAI request failed (${res.status}): ${detail.slice(0, 200)}`);
   }
   const data = await res.json();
   const content: string | undefined = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('GLM returned no content');
+  if (!content) throw new Error('OpenAI returned no content');
   return parseTasks(content);
 }

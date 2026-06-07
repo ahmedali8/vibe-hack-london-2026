@@ -1,9 +1,9 @@
 import { toCardTitle, toSentenceCase } from './format';
 import type { DailyPlan, DailyState, Meal, OvaraProfile, Workout } from './storage';
 
-const ZAI_BASE_URL =
-  process.env.EXPO_PUBLIC_ZAI_BASE_URL ?? 'https://api.z.ai/api/coding/paas/v4';
-const ZAI_MODEL = process.env.EXPO_PUBLIC_ZAI_MODEL ?? 'GLM-5';
+const OPENAI_BASE_URL =
+  process.env.EXPO_PUBLIC_OPENAI_BASE_URL ?? 'https://api.openai.com/v1';
+const OPENAI_MODEL = process.env.EXPO_PUBLIC_OPENAI_MODEL ?? 'gpt-4o-mini';
 
 export type WorkoutTip = { emoji: string; title: string; body: string };
 
@@ -16,14 +16,14 @@ export type LlmPlanPayload = {
 };
 
 export function hasLlmApiKey(): boolean {
-  return Boolean(process.env.EXPO_PUBLIC_ZAI_API_KEY?.trim());
+  return Boolean(process.env.EXPO_PUBLIC_OPENAI_API_KEY?.trim());
 }
 
-async function zaiChat(system: string, user: string): Promise<string | null> {
-  const apiKey = process.env.EXPO_PUBLIC_ZAI_API_KEY?.trim();
+async function openaiChat(system: string, user: string): Promise<string | null> {
+  const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY?.trim();
   if (!apiKey) return null;
 
-  const base = ZAI_BASE_URL.replace(/\/$/, '');
+  const base = OPENAI_BASE_URL.replace(/\/$/, '');
   const response = await fetch(`${base}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -31,9 +31,10 @@ async function zaiChat(system: string, user: string): Promise<string | null> {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: ZAI_MODEL,
+      model: OPENAI_MODEL,
       temperature: 0.5,
       max_tokens: 1200,
+      response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },
@@ -43,7 +44,7 @@ async function zaiChat(system: string, user: string): Promise<string | null> {
 
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(`Z.AI error ${response.status}: ${detail.slice(0, 200)}`);
+    throw new Error(`OpenAI error ${response.status}: ${detail.slice(0, 200)}`);
   }
 
   const data = (await response.json()) as {
@@ -185,7 +186,7 @@ Return JSON exactly in this shape:
   ]
 }`;
 
-  const raw = await zaiChat(SYSTEM_PROMPT, userPrompt);
+  const raw = await openaiChat(SYSTEM_PROMPT, userPrompt);
   if (!raw) return null;
   return parseLlmPlanResponse(raw);
 }

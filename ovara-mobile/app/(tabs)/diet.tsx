@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet, Animated, ActivityIndicator,
 } from 'react-native';
-import { Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EditFieldsModal, type EditField } from '../../components/EditFieldsModal';
 import { SwipeableCard } from '../../components/SwipeableCard';
@@ -218,12 +217,6 @@ export default function DietTab() {
         onSave={saveMealEdit}
         onClose={() => setEditingMeal(null)}
       />
-
-      <Link href="/chat" asChild>
-        <Pressable style={({ pressed }) => [styles.fab, pressed && { opacity: 0.85 }]}>
-          <Text style={{ fontSize: 26 }}>💬</Text>
-        </Pressable>
-      </Link>
     </SafeAreaView>
   );
 }
@@ -291,12 +284,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   hydBtnText: { fontFamily: 'Nunito_600SemiBold', fontSize: 14, color: colors.ink },
-
-  fab: {
-    position: 'absolute', bottom: 24, right: 20,
-    width: 60, height: 60, borderRadius: 30,
-    backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center',
-    shadowColor: colors.ink, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16,
-    elevation: 10,
-  },
 });
