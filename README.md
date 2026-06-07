@@ -12,11 +12,13 @@ Ovara turns real clinical data and a large language model into a daily plan that
 ![AI](https://img.shields.io/badge/AI-GLM--5.1-FF6F61)
 ![Status](https://img.shields.io/badge/status-hackathon%20prototype-blueviolet)
 
+🎥 **[Watch the demo](https://youtube.com/shorts/jlANsXPwuM0?feature=share)**
+
 ### Why it's different
 
 - **Grounded AI, not improvised advice** — GLM never invents food. It composes meals from a real, pre-scored bank of USDA whole foods, so recommendations stay safe and on-diet.
 - **Transparent, validated scoring** — the PCOS health score is built from clinical literature, never trained on the diagnosis label, yet separates PCOS-positive from negative patients with **AUC 0.914**.
-- **Privacy-first** — every personal detail lives in the device's encrypted store. No account, no backend, no cloud copy of your health data.
+- **Privacy-first** — every personal detail stays on your device. No account, no backend, no server, no cloud copy of your health data — we never collect or store it.
 
 ---
 
@@ -171,7 +173,7 @@ An empathetic, rule-based responder that works fully offline — the safety net 
 | --- | --- |
 | **Mobile app** | Expo SDK 54, React Native 0.81, React 19, Expo Router 6 (file-based, typed routes), TypeScript 5.9 |
 | **Motion & gestures** | `react-native-reanimated` 4 + `react-native-gesture-handler` — the rotatable cycle wheel, swipeable cards, scrollable calendar |
-| **Storage** | `expo-secure-store` — encrypted, on-device, no backend |
+| **Storage** | `expo-secure-store` (native) / `localStorage` (web) — on-device only, no backend |
 | **Look & feel** | `expo-linear-gradient`, Google Fonts (Fraunces + Nunito), `@expo/vector-icons` |
 | **AI** | GLM-5.1 via Z.AI Coding API (primary) with Claude (Anthropic Messages API) automatic fallback — shared layer `lib/aiChat.ts` |
 | **Data / ML** | Python + pandas — clinical and nutrition scoring rubrics, validation (AUC), distillation to TypeScript |
@@ -276,26 +278,6 @@ python3 scripts/build_cycle_day_data.py   # -> lib/cycleDayData.ts
 - **The cohort is specific.** The health score reflects one 541-subject fertility-clinic cohort; thresholds (especially AMH) are population- and assay-sensitive.
 - **The food score is a heuristic.** It's a transparent nutrient-based quality index, not a clinically validated diet score, and it omits signals like glycemic index and micronutrients (inositol, magnesium).
 - **The datasets don't join.** The clinical, nutrition, and wearable layers come from different populations and are used as independent reference layers — never as patient-linked records.
-
----
-
-## Roadmap
-
-- Upgrade companion chat from rule-based to a grounded GLM conversation with memory of the day's context.
-- Surface the PCOS health score and weakest sub-scores in the app UI.
-- Sync logged symptoms back into the next day's score and plan, closing the feedback loop.
-- Add screenshots and a short demo video to this README.
-
----
-
-## Credits and data sources
-
-- **Kaggle** — PCOS dataset (`PCOS_data_without_infertility`), the clinical anchor.
-- **USDA FoodData Central** — Foundation, SR-Legacy, and Survey/FNDDS whole-food releases.
-- **PhysioNet mcPHASES v1.0.0** — longitudinal cycle, symptom, and wearable signals.
-- **Z.AI / Zhipu** — GLM models powering the personalized plans and daily to-dos.
-
-README best practices referenced while writing this: [freeCodeCamp — How to write a good README](https://www.freecodecamp.org/news/how-to-write-a-good-readme-file/), [freeCodeCamp — How to structure your README](https://www.freecodecamp.org/news/how-to-structure-your-readme-file/), and [What makes a hackathon project stand out](https://medium.com/@BizthonOfficial/10-winning-hacks-what-makes-a-hackathon-project-stand-out-818d72425c78).
 
 ---
 
